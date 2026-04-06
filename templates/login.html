@@ -62,13 +62,23 @@
         </section>
     </div>
 
+    <script src="/js/data.js"></script>
     <script>
-        document.getElementById('loginForm').addEventListener('submit', function(e) {
-            e.preventDefault();
-            const username = document.querySelector('input[name="username"]').value;
-            localStorage.setItem('fincastLoggedIn', 'true');
-            localStorage.setItem('fincastUser', username);
+        if (window.FinCastData?.isAuthenticated()) {
             window.location.href = 'dashboard.html';
+        }
+
+        document.getElementById('loginForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const username = document.getElementById('loginUsername').value.trim();
+            const password = document.getElementById('loginPassword').value;
+
+            try {
+                await FinCastData.loginUser(username, password);
+                window.location.href = 'dashboard.html';
+            } catch (error) {
+                alert(error.message || 'Unable to sign in.');
+            }
         });
     </script>
 </body>

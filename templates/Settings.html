@@ -84,19 +84,19 @@
                             <div class="mb-3">
                                 <label for="budgetAlertThreshold">Budget Alert Threshold</label>
                                 <select id="budgetAlertThreshold" class="form-select">
-                                    <option>50% of budget</option>
-                                    <option selected>80% of budget</option>
-                                    <option>90% of budget</option>
-                                    <option>100% of budget</option>
+                                    <option value="50">50% of budget</option>
+                                    <option value="80" selected>80% of budget</option>
+                                    <option value="90">90% of budget</option>
+                                    <option value="100">100% of budget</option>
                                 </select>
                             </div>
                             <div class="mb-3">
                                 <label for="currencySelect">Currency</label>
                                 <select id="currencySelect" class="form-select">
-                                    <option selected>Indian Rupee (&#8377;)</option>
-                                    <option>US Dollar ($)</option>
-                                    <option>Euro (&#8364;)</option>
-                                    <option>British Pound (&pound;)</option>
+                                    <option value="INR" selected>Indian Rupee (&#8377;)</option>
+                                    <option value="USD">US Dollar ($)</option>
+                                    <option value="EUR">Euro (&#8364;)</option>
+                                    <option value="GBP">British Pound (&pound;)</option>
                                 </select>
                             </div>
                             <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Save Budget</button>
@@ -148,7 +148,7 @@
                                 <input class="form-check-input" id="twoFactor" type="checkbox" checked>
                                 <label for="twoFactor" class="mb-0">Two-Factor Authentication<br><span class="muted-copy">Add an extra layer of account protection.</span></label>
                             </div>
-                            <button type="button" class="btn btn-primary"><i class="fas fa-key"></i> Update Password</button>
+                            <button type="submit" class="btn btn-primary"><i class="fas fa-key"></i> Update Password</button>
                         </form>
                     </div>
                 </div>
@@ -161,7 +161,7 @@
                         <p class="muted-copy mb-3">These actions are irreversible. Review carefully before continuing.</p>
                         <div class="d-flex gap-3 flex-wrap">
                             <button class="btn btn-danger-soft" onclick="clearAllData()"><i class="fas fa-trash"></i> Clear All Data</button>
-                            <button class="btn btn-danger-soft"><i class="fas fa-user-slash"></i> Delete Account</button>
+                            <button class="btn btn-danger-soft" id="deleteAccountBtn"><i class="fas fa-user-slash"></i> Delete Account</button>
                         </div>
                     </div>
                 </div>
@@ -177,42 +177,35 @@
         }
 
         function clearAllData() {
-            if (!confirm('This will permanently delete all your expenses. Continue?')) return;
-            localStorage.setItem('fincast_expenses', JSON.stringify([]));
-            localStorage.removeItem('fincast_cached_expenses');
-            localStorage.removeItem('fincastMonthlyBudget');
-            alert('All data cleared!');
+            if (!confirm('This will permanently delete your local expenses, reports, recurring items, and budget settings. Continue?')) return;
+            FinCastData.clearAllUserData();
+            alert('Your account data has been cleared for this device.');
             window.location.reload();
         }
 
         function saveProfile(e) {
             e.preventDefault();
-            const fullName = document.getElementById('profileFullName').value;
-            const username = document.getElementById('profileUsername').value;
-            const email = document.getElementById('profileEmail').value;
-            const phone = document.getElementById('profilePhone').value;
+            const fullName = document.getElementById('profileFullName').value.trim();
+            const email = document.getElementById('profileEmail').value.trim();
+            const phone = document.getElementById('profilePhone').value.trim();
 
-            localStorage.setItem('fincastFullName', fullName);
-            localStorage.setItem('fincastUser', username);
-            localStorage.setItem('fincastEmail', email);
-            localStorage.setItem('fincastPhone', phone);
-
-            if (window.FinCastData) {
-                FinCastData.updateUserData({ username, email, phone });
-            }
-
-            document.getElementById('profileName').textContent = fullName || username;
+            FinCastData.updateUserData({ fullName, email, phone });
+            document.getElementById('profileName').textContent = FinCastData.getDisplayName();
             alert('Profile updated successfully!');
         }
 
         function saveBudget(e) {
             e.preventDefault();
-            const budgetValue = document.getElementById('monthlyBudget').value;
-            localStorage.setItem('fincastMonthlyBudget', budgetValue);
+            const budgetValue = Number(document.getElementById('monthlyBudget').value) || 0;
+            const thresholdValue = Number(document.getElementById('budgetAlertThreshold').value);
+            const currencyValue = document.getElementById('currencySelect').value;
 
-            if (window.FinCastData) {
-                FinCastData.updateBudget({ monthly: Number(budgetValue) });
-            }
+            FinCastData.updateBudget({
+                monthly: budgetValue,
+                alertThreshold: thresholdValue,
+                currency: currencyValue
+            });
+            FinCastData.allowRemoteSync();
 
             const btn = e.currentTarget.querySelector('button[type="submit"]');
             const originalText = btn.innerHTML;
@@ -225,37 +218,84 @@
             }, 1800);
         }
 
+        async function saveSecurity(e) {
+            e.preventDefault();
+            const currentPassword = document.getElementById('currentPassword').value;
+            const newPassword = document.getElementById('newPassword').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+            const twoFactor = document.getElementById('twoFactor').checked;
+
+            if (!newPassword || newPassword.length < 6) {
+                alert('Please enter a new password with at least 6 characters.');
+                return;
+            }
+
+            if (newPassword !== confirmPassword) {
+                alert('New password and confirmation do not match.');
+                return;
+            }
+
+            try {
+                await FinCastData.updatePassword(currentPassword, newPassword);
+                FinCastData.updateSettings({ twoFactor });
+                document.getElementById('securityForm').reset();
+                document.getElementById('twoFactor').checked = twoFactor;
+                alert('Security settings updated successfully.');
+            } catch (error) {
+                alert(error.message || 'Unable to update password.');
+            }
+        }
+
+        function saveNotificationSettings() {
+            FinCastData.updateSettings({
+                budgetAlerts: document.getElementById('budgetAlerts').checked,
+                weeklySummary: document.getElementById('weeklySummary').checked,
+                largeExpenseAlerts: document.getElementById('largeExpenseAlerts').checked,
+                billReminders: document.getElementById('billReminders').checked,
+                twoFactor: document.getElementById('twoFactor').checked
+            });
+        }
+
+        function deleteAccount() {
+            if (!confirm('Delete this account and all saved data on this device?')) return;
+            FinCastData.deleteCurrentAccount();
+            alert('Your account has been deleted.');
+            window.location.href = '../index.html';
+        }
+
+        function populateSettingsPage() {
+            const user = FinCastData.getUserData();
+            const budget = FinCastData.getBudget();
+            const settings = FinCastData.getSettings();
+
+            document.getElementById('profileName').textContent = FinCastData.getDisplayName();
+            document.getElementById('profileFullName').value = user.fullName || '';
+            document.getElementById('profileUsername').value = user.username || '';
+            document.getElementById('profileEmail').value = user.email || '';
+            document.getElementById('profilePhone').value = user.phone || '';
+
+            document.getElementById('monthlyBudget').value = budget.monthly || 5000;
+            document.getElementById('budgetAlertThreshold').value = String(budget.alertThreshold || 80);
+            document.getElementById('currencySelect').value = budget.currency || 'INR';
+
+            document.getElementById('budgetAlerts').checked = Boolean(settings.budgetAlerts);
+            document.getElementById('weeklySummary').checked = Boolean(settings.weeklySummary);
+            document.getElementById('largeExpenseAlerts').checked = Boolean(settings.largeExpenseAlerts);
+            document.getElementById('billReminders').checked = Boolean(settings.billReminders);
+            document.getElementById('twoFactor').checked = settings.twoFactor !== false;
+        }
+
         document.addEventListener('DOMContentLoaded', function() {
-            const fullName = localStorage.getItem('fincastFullName');
-            const username = localStorage.getItem('fincastUser');
-            const email = localStorage.getItem('fincastEmail');
-            const phone = localStorage.getItem('fincastPhone');
-            const savedBudget = localStorage.getItem('fincastMonthlyBudget');
-
-            if (fullName) {
-                document.getElementById('profileName').textContent = fullName;
-                document.getElementById('profileFullName').value = fullName;
-            } else if (username) {
-                document.getElementById('profileName').textContent = username;
-            }
-
-            if (username) document.getElementById('profileUsername').value = username;
-            if (email) document.getElementById('profileEmail').value = email;
-            if (phone) document.getElementById('profilePhone').value = phone;
-            if (savedBudget) document.getElementById('monthlyBudget').value = savedBudget;
-
-            if (window.FinCastData) {
-                const settings = FinCastData.getSettings ? FinCastData.getSettings() : null;
-                if (settings) {
-                    document.getElementById('budgetAlerts').checked = settings.budgetAlerts;
-                    document.getElementById('weeklySummary').checked = settings.weeklySummary;
-                    document.getElementById('largeExpenseAlerts').checked = settings.largeExpenseAlerts;
-                    document.getElementById('billReminders').checked = settings.billReminders;
-                }
-            }
+            if (!window.FinCastData?.requireAuth()) return;
+            populateSettingsPage();
 
             document.getElementById('profileForm').addEventListener('submit', saveProfile);
             document.getElementById('budgetForm').addEventListener('submit', saveBudget);
+            document.getElementById('securityForm').addEventListener('submit', saveSecurity);
+            document.getElementById('deleteAccountBtn').addEventListener('click', deleteAccount);
+            ['budgetAlerts', 'weeklySummary', 'largeExpenseAlerts', 'billReminders', 'twoFactor'].forEach(id => {
+                document.getElementById(id).addEventListener('change', saveNotificationSettings);
+            });
         });
     </script>
 </body>

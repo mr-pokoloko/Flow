@@ -11,17 +11,28 @@ const appPalette = {
     indigoSoft: 'rgba(43, 45, 66, 0.14)'
 };
 
-document.addEventListener('DOMContentLoaded', function() {
-    const savedBudget = localStorage.getItem('fincastMonthlyBudget');
-    if (savedBudget) {
-        monthlyBudget = parseInt(savedBudget, 10);
-    }
+document.addEventListener('DOMContentLoaded', async function() {
+    if (!window.FinCastData?.requireAuth()) return;
 
+    initializeDashboard();
+    await loadDashboardData();
+});
+
+function initializeDashboard() {
+    const budget = window.FinCastData ? FinCastData.getBudget() : { monthly: 5000 };
+    monthlyBudget = Number(budget.monthly) || 5000;
     createCharts();
     bindExpenseForm();
-    loadRecurringExpenses();
-    loadExpensesFirst();
-});
+    renderProfileName();
+    updateNotifications();
+}
+
+function renderProfileName() {
+    const profileName = document.getElementById('profileName');
+    if (profileName && window.FinCastData) {
+        profileName.textContent = FinCastData.getDisplayName();
+    }
+}
 
 function createCharts() {
     const categoryCanvas = document.getElementById('categoryChart');
@@ -32,15 +43,10 @@ function createCharts() {
         window.categoryChart = new Chart(categoryCanvas, {
             type: 'pie',
             data: {
-                labels: ['Food', 'Transport', 'Shopping', 'Bills'],
+                labels: ['No expenses yet'],
                 datasets: [{
-                    data: [0, 0, 0, 0],
-                    backgroundColor: [
-                        appPalette.red,
-                        appPalette.crimson,
-                        appPalette.lavender,
-                        appPalette.indigo
-                    ],
+                    data: [1],
+                    backgroundColor: [appPalette.lavender],
                     borderWidth: 0
                 }]
             },
@@ -111,7 +117,12 @@ function createCharts() {
                     y: {
                         beginAtZero: true,
                         grid: { color: appPalette.indigoSoft },
-                        ticks: { color: appPalette.indigo }
+                        ticks: {
+                            color: appPalette.indigo,
+                            callback(value) {
+                                return formatCurrency(value);
+                            }
+                        }
                     }
                 }
             }
@@ -123,49 +134,44 @@ function bindExpenseForm() {
     const expenseForm = document.getElementById('expense-form');
     if (!expenseForm) return;
 
-    expenseForm.addEventListener('submit', function(e) {
-        e.preventDefault();
+    expenseForm.addEventListener('submit', async function(event) {
+        event.preventDefault();
 
         const expense = {
-            name: document.getElementById('expense-name').value,
+            name: document.getElementById('expense-name').value.trim(),
             amount: Number(document.getElementById('expense-amount').value),
             category: document.getElementById('expense-category').value,
-            date: normalizeDate(document.getElementById('expense-date').value)
+            date: normalizeDate(document.getElementById('expense-date').value) || new Date().toISOString().split('T')[0]
         };
 
-        fetch('/add_expense', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                title: expense.name,
-                amount: expense.amount,
-                category: expense.category,
-                date: expense.date,
-                user_id: 1
-            })
-        })
-            .then(res => res.json())
-            .then(() => {
-                expenses.push(expense);
-                addExpenseToTable(expense);
-                syncCachedExpenses();
-                updateCharts();
-                updateBudgetStatus();
-                setTimeout(loadExpensesFirst, 250);
-            })
-            .catch(err => {
-                console.error('Error adding expense to backend:', err);
-                if (window.FinCastData) {
-                    FinCastData.addExpense(expense);
-                    expenses = FinCastData.getExpenses();
-                } else {
-                    expenses.push(expense);
-                }
-                addExpenseToTable(expense);
-                updateCharts();
-                updateBudgetStatus();
-            });
+        if (!expense.name || !expense.amount) {
+            alert('Please complete the expense form before saving.');
+            return;
+        }
 
+        let savedExpense = expense;
+        const backendExpense = await postJson('/add_expense', {
+            title: expense.name,
+            amount: expense.amount,
+            category: expense.category,
+            date: expense.date,
+            user_id: 1
+        });
+
+        if (backendExpense && typeof backendExpense === 'object') {
+            savedExpense = {
+                id: backendExpense.id || undefined,
+                ...expense
+            };
+            FinCastData.allowRemoteSync();
+        }
+
+        FinCastData.addExpense(savedExpense);
+        expenses = FinCastData.getExpenses();
+        renderExpenseTable();
+        updateCharts();
+        updateBudgetStatus();
+        updateNotifications();
         expenseForm.reset();
     });
 }
@@ -177,49 +183,90 @@ function normalizeDate(date) {
     return `${parts[2]}-${parts[1]}-${parts[0]}`;
 }
 
-function syncCachedExpenses() {
-    localStorage.setItem('fincast_cached_expenses', JSON.stringify(expenses));
-}
+async function loadDashboardData() {
+    expenses = window.FinCastData ? FinCastData.getExpenses() : [];
+    monthlyBudget = window.FinCastData ? Number(FinCastData.getBudget().monthly) || 5000 : 5000;
+    renderExpenseTable();
+    updateCharts();
+    updateBudgetStatus();
+    await loadRecurringExpenses();
 
-function loadExpensesFirst() {
-    const cachedExpenses = localStorage.getItem('fincast_cached_expenses');
-    if (cachedExpenses) {
-        expenses = JSON.parse(cachedExpenses);
-        renderExpenseTable();
+    if (window.FinCastData?.isRemoteSyncBlocked()) {
+        return;
+    }
+
+    const remoteExpenses = await getJson('/get_expenses/1');
+    if (Array.isArray(remoteExpenses)) {
+        const mappedExpenses = remoteExpenses
+            .filter(item => item && typeof item === 'object' && item.title && item.amount !== undefined)
+            .map(item => ({
+                id: item.id || undefined,
+                name: item.title,
+                amount: Number(item.amount) || 0,
+                category: item.category || 'Other',
+                date: item.date || new Date().toISOString().split('T')[0]
+            }));
+
+        if (mappedExpenses.length || remoteExpenses.length === 0) {
+            FinCastData.setExpenses(mappedExpenses);
+            expenses = FinCastData.getExpenses();
+            renderExpenseTable();
+            updateCharts();
+            updateBudgetStatus();
+        }
+    }
+
+    const remoteBudget = await getJson('/get_budget/1');
+    if (remoteBudget && typeof remoteBudget.monthly !== 'undefined') {
+        FinCastData.updateBudget({
+            monthly: Number(remoteBudget.monthly) || monthlyBudget
+        });
+        monthlyBudget = Number(FinCastData.getBudget().monthly) || 5000;
         updateCharts();
         updateBudgetStatus();
     }
 
-    fetch('/get_expenses/1')
-        .then(res => res.json())
-        .then(data => {
-            expenses = data.map(expense => ({
-                name: expense.title,
-                amount: Number(expense.amount),
-                category: expense.category,
-                date: expense.date
+    const remoteRecurring = await getJson('/get_recurring/1');
+    if (Array.isArray(remoteRecurring)) {
+        const recurring = remoteRecurring
+            .filter(item => item && typeof item === 'object')
+            .map(item => ({
+                id: item.id || undefined,
+                title: item.title || 'Recurring expense',
+                amount: Number(item.amount) || 0,
+                category: item.category || 'Bills',
+                frequency: item.frequency || 'monthly',
+                next_due: item.next_due || new Date().toISOString().split('T')[0]
             }));
-
-            renderExpenseTable();
-            syncCachedExpenses();
-            return fetch('/get_budget/1');
-        })
-        .then(res => res.json())
-        .then(budgetData => {
-            monthlyBudget = budgetData.monthly || 5000;
-            localStorage.setItem('fincastMonthlyBudget', monthlyBudget);
-            updateCharts();
-            updateBudgetStatus();
-        })
-        .catch(err => {
-            console.error('Error loading data:', err);
-            updateCharts();
-            updateBudgetStatus();
-        });
+        FinCastData.setRecurringExpenses(recurring);
+        await loadRecurringExpenses();
+    }
 }
 
-function loadExpenses() {
-    loadExpensesFirst();
+async function getJson(url) {
+    try {
+        const response = await fetch(url);
+        if (!response.ok) return null;
+        return await response.json();
+    } catch (error) {
+        console.warn(`Flow backend request failed for ${url}:`, error);
+        return null;
+    }
+}
+
+async function postJson(url, payload, method = 'POST') {
+    try {
+        const response = await fetch(url, {
+            method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        if (!response.ok) return null;
+        return await response.json();
+    } catch (error) {
+        console.warn(`Flow backend request failed for ${url}:`, error);
+        return null;
+    }
 }
 
 function renderExpenseTable() {
@@ -227,7 +274,22 @@ function renderExpenseTable() {
     if (!table) return;
 
     table.innerHTML = '';
-    expenses.forEach(expense => addExpenseToTable(expense));
+
+    if (!expenses.length) {
+        table.innerHTML = `
+            <tr>
+                <td colspan="4">
+                    <div class="empty-state">
+                        <div class="empty-state-icon"><i class="fas fa-receipt"></i></div>
+                        <p class="mb-0">No expenses added yet</p>
+                    </div>
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    expenses.slice(0, 10).forEach(expense => addExpenseToTable(expense));
 }
 
 function addExpenseToTable(expense) {
@@ -236,75 +298,80 @@ function addExpenseToTable(expense) {
 
     const row = document.createElement('tr');
     row.innerHTML = `
-        <td>${expense.name}</td>
-        <td>${expense.category}</td>
-        <td>${expense.date}</td>
-        <td>₹${expense.amount}</td>
+        <td>${escapeHtml(expense.name)}</td>
+        <td>${escapeHtml(expense.category)}</td>
+        <td>${formatDate(expense.date)}</td>
+        <td>${formatCurrency(expense.amount)}</td>
     `;
     table.appendChild(row);
 }
 
 function updateCharts() {
-    const categoryTotals = { Food: 0, Transport: 0, Shopping: 0, Bills: 0 };
+    const categoryTotals = {};
     expenses.forEach(expense => {
-        if (Object.prototype.hasOwnProperty.call(categoryTotals, expense.category)) {
-            categoryTotals[expense.category] += Number(expense.amount);
-        }
+        const category = expense.category || 'Other';
+        categoryTotals[category] = (categoryTotals[category] || 0) + Number(expense.amount || 0);
     });
 
     if (window.categoryChart) {
-        window.categoryChart.data.datasets[0].data = Object.values(categoryTotals);
+        const labels = Object.keys(categoryTotals);
+        const values = Object.values(categoryTotals);
+        const colors = [
+            appPalette.red,
+            appPalette.crimson,
+            appPalette.lavender,
+            appPalette.indigo,
+            '#f77f00',
+            '#457b9d',
+            '#2a9d8f',
+            '#6a4c93'
+        ];
+
+        window.categoryChart.data.labels = labels.length ? labels : ['No expenses yet'];
+        window.categoryChart.data.datasets[0].data = values.length ? values : [1];
+        window.categoryChart.data.datasets[0].backgroundColor = labels.length ? colors.slice(0, labels.length) : [appPalette.lavender];
         window.categoryChart.update();
     }
 
-    if (window.monthlyChart) {
-        updateMonthlyChart();
-    }
+    updateMonthlyChart();
 
-    const total = expenses.reduce((sum, item) => sum + Number(item.amount), 0);
-    const remaining = Math.max(0, monthlyBudget - total);
+    const total = expenses.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    const remaining = monthlyBudget - total;
     const totalExpenseEl = document.getElementById('total-expense');
     const budgetBalanceEl = document.getElementById('budget-balance');
 
-    if (totalExpenseEl) totalExpenseEl.innerText = '₹' + total;
+    if (totalExpenseEl) totalExpenseEl.innerText = formatCurrency(total);
     if (budgetBalanceEl) {
-        budgetBalanceEl.innerText = '₹' + remaining;
-        budgetBalanceEl.classList.toggle('budget-balance-negative', monthlyBudget - total < 0);
-        budgetBalanceEl.classList.toggle('budget-balance-positive', monthlyBudget - total >= 0);
-    }
-
-    if (window.budgetChart) {
-        window.budgetChart.data.datasets[0].data = [total, remaining];
-        window.budgetChart.update();
-    }
-}
-
-function updateBudgetStatus() {
-    const savedBudget = localStorage.getItem('fincastMonthlyBudget');
-    if (savedBudget) {
-        monthlyBudget = parseInt(savedBudget, 10);
-    }
-
-    if (window.FinCastData && FinCastData.getBudget) {
-        const budgetData = FinCastData.getBudget();
-        monthlyBudget = budgetData.monthly || monthlyBudget;
-    }
-
-    const spent = expenses.reduce((sum, item) => sum + Number(item.amount), 0);
-    const remaining = monthlyBudget - spent;
-    const totalExpenseEl = document.getElementById('total-expense');
-    const budgetBalanceEl = document.getElementById('budget-balance');
-    const budgetMsg = document.getElementById('budget-message');
-
-    if (totalExpenseEl) totalExpenseEl.innerText = '₹' + spent;
-    if (budgetBalanceEl) {
-        budgetBalanceEl.innerText = '₹' + Math.max(0, remaining);
+        budgetBalanceEl.innerText = formatCurrency(remaining);
         budgetBalanceEl.classList.toggle('budget-balance-negative', remaining < 0);
         budgetBalanceEl.classList.toggle('budget-balance-positive', remaining >= 0);
     }
 
     if (window.budgetChart) {
-        window.budgetChart.data.datasets[0].data = [spent, Math.max(0, remaining)];
+        window.budgetChart.data.datasets[0].data = [Math.max(total, 0), Math.max(remaining, 0)];
+        window.budgetChart.update();
+    }
+}
+
+function updateBudgetStatus() {
+    const budgetData = window.FinCastData ? FinCastData.getBudget() : { monthly: monthlyBudget };
+    monthlyBudget = Number(budgetData.monthly) || monthlyBudget;
+
+    const spent = expenses.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    const remaining = monthlyBudget - spent;
+    const totalExpenseEl = document.getElementById('total-expense');
+    const budgetBalanceEl = document.getElementById('budget-balance');
+    const budgetMsg = document.getElementById('budget-message');
+
+    if (totalExpenseEl) totalExpenseEl.innerText = formatCurrency(spent);
+    if (budgetBalanceEl) {
+        budgetBalanceEl.innerText = formatCurrency(remaining);
+        budgetBalanceEl.classList.toggle('budget-balance-negative', remaining < 0);
+        budgetBalanceEl.classList.toggle('budget-balance-positive', remaining >= 0);
+    }
+
+    if (window.budgetChart) {
+        window.budgetChart.data.datasets[0].data = [Math.max(spent, 0), Math.max(remaining, 0)];
         window.budgetChart.update();
     }
 
@@ -317,7 +384,7 @@ function updateBudgetStatus() {
         budgetMsg.innerText = 'You are getting close to your monthly budget.';
         budgetMsg.style.color = appPalette.lavender;
     } else {
-        budgetMsg.innerText = 'Warning: you have exceeded your monthly budget.';
+        budgetMsg.innerText = `Warning: you are over budget by ${formatCurrency(Math.abs(remaining))}.`;
         budgetMsg.style.color = appPalette.crimson;
     }
 }
@@ -329,8 +396,8 @@ function updateMonthlyChart() {
     expenses.forEach(expense => {
         const date = new Date(expense.date);
         const month = date.getMonth();
-        if (month >= 0 && month < 12) {
-            monthlyTotals[month] += Number(expense.amount);
+        if (!Number.isNaN(date.getTime()) && month >= 0 && month < 12) {
+            monthlyTotals[month] += Number(expense.amount || 0);
         }
     });
 
@@ -338,60 +405,46 @@ function updateMonthlyChart() {
     window.monthlyChart.update();
 }
 
-function loadRecurringExpenses() {
-    fetch('/get_recurring/1')
-        .then(res => res.json())
-        .then(data => {
-            const recurringList = document.getElementById('recurring-list');
-            if (!recurringList) return;
+async function loadRecurringExpenses() {
+    const recurringList = document.getElementById('recurring-list');
+    if (!recurringList) return;
 
-            if (!data.length) {
-                recurringList.innerHTML = `
-                    <div class="empty-state">
-                        <div class="empty-state-icon"><i class="fas fa-sync-alt"></i></div>
-                        <p class="mb-0">No recurring expenses yet</p>
-                    </div>
-                `;
-                return;
-            }
+    const recurringItems = window.FinCastData ? FinCastData.getRecurringExpenses() : [];
+    if (!recurringItems.length) {
+        recurringList.innerHTML = `
+            <div class="empty-state">
+                <div class="empty-state-icon"><i class="fas fa-sync-alt"></i></div>
+                <p class="mb-0">No recurring expenses yet</p>
+            </div>
+        `;
+        return;
+    }
 
-            recurringList.innerHTML = data.map(item => `
-                <div class="soft-panel mb-2">
-                    <div class="d-flex justify-content-between align-items-start gap-3">
-                        <div>
-                            <h6 class="mb-1">${item.title}</h6>
-                            <p class="mb-1 muted-copy">₹${item.amount} • ${item.category}</p>
-                            <small class="muted-copy"><i class="fas fa-clock"></i> ${item.frequency} • Due: ${item.next_due}</small>
-                        </div>
-                        <button class="btn btn-danger-soft btn-sm" onclick="deleteRecurring(${item.id})">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    </div>
+    recurringList.innerHTML = recurringItems.map(item => `
+        <div class="soft-panel mb-2">
+            <div class="d-flex justify-content-between align-items-start gap-3">
+                <div>
+                    <h6 class="mb-1">${escapeHtml(item.title)}</h6>
+                    <p class="mb-1 muted-copy">${formatCurrency(item.amount)} - ${escapeHtml(item.category)}</p>
+                    <small class="muted-copy"><i class="fas fa-clock"></i> ${escapeHtml(item.frequency)} - Due: ${formatDate(item.next_due)}</small>
                 </div>
-            `).join('');
-        })
-        .catch(err => {
-            console.error('Error loading recurring expenses:', err);
-            const recurringList = document.getElementById('recurring-list');
-            if (recurringList) {
-                recurringList.innerHTML = '<p class="danger-text small mb-0">Error loading recurring expenses.</p>';
-            }
-        });
+                <button class="btn btn-danger-soft btn-sm" onclick="deleteRecurring('${item.id}')">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
+        </div>
+    `).join('');
 }
 
-function deleteRecurring(id) {
+async function deleteRecurring(id) {
     if (!confirm('Are you sure you want to delete this recurring expense?')) return;
 
-    fetch(`/delete_recurring/${id}`, { method: 'DELETE' })
-        .then(res => res.json())
-        .then(() => {
-            loadRecurringExpenses();
-            alert('Recurring expense deleted successfully');
-        })
-        .catch(err => {
-            console.error('Error deleting recurring expense:', err);
-            alert('Error deleting recurring expense');
-        });
+    const deletedRemotely = await postJson(`/delete_recurring/${id}`, {}, 'DELETE');
+    if (deletedRemotely || !window.FinCastData?.isRemoteSyncBlocked()) {
+        FinCastData.deleteRecurringExpense(id);
+    }
+    await loadRecurringExpenses();
+    updateNotifications();
 }
 
 function toggleRecurringForm() {
@@ -413,35 +466,87 @@ function toggleRecurringForm() {
     }
 }
 
-function addRecurring() {
-    const title = document.getElementById('r_title').value;
-    const amount = document.getElementById('r_amount').value;
+async function addRecurring() {
+    const title = document.getElementById('r_title').value.trim();
+    const amount = Number(document.getElementById('r_amount').value);
     const category = document.getElementById('r_category').value;
     const frequency = document.getElementById('r_frequency').value;
     const next_due = document.getElementById('r_due').value;
 
     if (!title || !amount || !next_due) {
-        alert('Please fill in all required fields');
+        alert('Please fill in all required fields.');
         return;
     }
 
-    fetch('/add_recurring', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, amount, category, frequency, next_due, user_id: 1 })
-    })
-        .then(res => res.json())
-        .then(() => {
-            document.getElementById('r_title').value = '';
-            document.getElementById('r_amount').value = '';
-            document.getElementById('r_category').value = 'Bills';
-            document.getElementById('r_frequency').value = 'monthly';
-            document.getElementById('r_due').value = '';
-            toggleRecurringForm();
-            loadRecurringExpenses();
-        })
-        .catch(err => {
-            console.error('Error adding recurring expense:', err);
-            alert('Error adding recurring expense');
-        });
+    const payload = { title, amount, category, frequency, next_due, user_id: 1 };
+    const backendRecurring = await postJson('/add_recurring', payload);
+    FinCastData.addRecurringExpense({
+        id: backendRecurring?.id,
+        title,
+        amount,
+        category,
+        frequency,
+        next_due
+    });
+    FinCastData.allowRemoteSync();
+
+    document.getElementById('r_title').value = '';
+    document.getElementById('r_amount').value = '';
+    document.getElementById('r_category').value = 'Bills';
+    document.getElementById('r_frequency').value = 'monthly';
+    document.getElementById('r_due').value = '';
+    toggleRecurringForm();
+    await loadRecurringExpenses();
+    updateNotifications();
 }
+
+function updateNotifications() {
+    const popupBody = document.querySelector('.notification-popup-body');
+    const dot = document.getElementById('notificationDot');
+    if (!popupBody || !window.FinCastData) return;
+
+    const notifications = FinCastData.getNotifications();
+    popupBody.innerHTML = notifications.map(item => `
+        <div class="notification-popup-item">
+            <div class="notification-popup-icon"><i class="fas ${item.icon}"></i></div>
+            <div class="notification-popup-text">
+                <h6>${escapeHtml(item.title)}</h6>
+                <p>${escapeHtml(item.body)}</p>
+                <small>${escapeHtml(item.meta)}</small>
+            </div>
+        </div>
+    `).join('');
+
+    if (dot) {
+        const hasAttention = notifications.some(item => item.tone === 'warning' || item.tone === 'info');
+        dot.style.display = hasAttention ? 'block' : 'none';
+    }
+}
+
+function formatCurrency(amount) {
+    return window.FinCastData ? FinCastData.formatCurrency(amount) : `₹${Number(amount || 0)}`;
+}
+
+function formatDate(value) {
+    return window.FinCastData ? FinCastData.formatDate(value) : value;
+}
+
+function escapeHtml(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+window.addEventListener('fincast_data_change', function() {
+    expenses = window.FinCastData ? FinCastData.getExpenses() : expenses;
+    monthlyBudget = window.FinCastData ? Number(FinCastData.getBudget().monthly) || monthlyBudget : monthlyBudget;
+    renderExpenseTable();
+    updateCharts();
+    updateBudgetStatus();
+    loadRecurringExpenses();
+    updateNotifications();
+    renderProfileName();
+});

@@ -132,26 +132,9 @@
         }
 
         document.addEventListener('DOMContentLoaded', function() {
-            const fullName = localStorage.getItem('fincastFullName');
-            const username = localStorage.getItem('fincastUser');
-            if (fullName) {
-                document.getElementById('profileName').textContent = fullName;
-            } else if (username) {
-                document.getElementById('profileName').textContent = username;
-            }
-
-            if (window.FinCastData) {
-                const analytics = FinCastData.getAnalytics();
-                document.getElementById('avgDailyValue').textContent = '\u20B9' + Math.round(analytics.averageTransaction || 0);
-                document.getElementById('topCategoryValue').textContent = analytics.topCategory || '-';
-                const savingsRate = analytics.totalSpent > 0
-                    ? Math.round(((analytics.budgetLeft > 0 ? analytics.budgetLeft : 0) / (analytics.totalSpent + analytics.budgetLeft)) * 100)
-                    : 0;
-                document.getElementById('savingsRateValue').textContent = savingsRate + '%';
-                const currentMonth = new Date().getMonth();
-                document.getElementById('predictedMonthlyValue').textContent = '\u20B9' + (analytics.monthlyTotals[currentMonth] || 0);
-                updateChartsWithRealData(analytics);
-            }
+            if (!window.FinCastData?.requireAuth()) return;
+            document.getElementById('profileName').textContent = FinCastData.getDisplayName();
+            renderAnalytics();
         });
 
         const sharedOptions = {
@@ -247,22 +230,57 @@
         });
 
         function updateChartsWithRealData(analytics) {
-            categoryBarChart.data.datasets[0].data = [
-                analytics.categoryTotals['Food'] || 0,
-                analytics.categoryTotals['Transport'] || 0,
-                analytics.categoryTotals['Shopping'] || 0,
-                analytics.categoryTotals['Bills'] || 0,
-                analytics.categoryTotals['Entertainment'] || 0,
-                analytics.categoryTotals['Health'] || 0
-            ];
+            const categoryEntries = Object.entries(analytics.categoryTotals || {});
+            const fallbackEntries = [['No spending yet', 0]];
+            const activeEntries = categoryEntries.length ? categoryEntries : fallbackEntries;
+
+            categoryBarChart.data.labels = activeEntries.map(([label]) => label);
+            categoryBarChart.data.datasets[0].data = activeEntries.map(([, value]) => value);
             categoryBarChart.update();
 
             monthlyComparisonChart.data.datasets[0].data = analytics.monthlyTotals;
+            monthlyComparisonChart.data.datasets[1].data = analytics.previousYearMonthlyTotals || Array(12).fill(0);
             monthlyComparisonChart.update();
 
-            trendChart.data.datasets[0].data = analytics.monthlyTotals.slice(-6);
+            trendChart.data.labels = analytics.recentSixMonths.labels;
+            trendChart.data.datasets[0].data = analytics.recentSixMonths.data;
             trendChart.update();
         }
+
+        function renderAnalytics() {
+            const analytics = FinCastData.getAnalytics();
+            document.getElementById('avgDailyValue').textContent = FinCastData.formatCurrency(Math.round(analytics.averageDailySpend || 0));
+            document.getElementById('topCategoryValue').textContent = analytics.topCategory || '-';
+            document.getElementById('savingsRateValue').textContent = `${analytics.savingsRate || 0}%`;
+            document.getElementById('predictedMonthlyValue').textContent = FinCastData.formatCurrency(analytics.predictedMonthly || 0);
+
+            const topCategoryNote = document.querySelector('#topCategoryValue + p');
+            if (topCategoryNote) {
+                topCategoryNote.textContent = analytics.topCategoryShare ? `${analytics.topCategoryShare}% of total spending` : 'No category data yet';
+            }
+
+            const avgDailyNote = document.querySelector('#avgDailyValue + p');
+            if (avgDailyNote) {
+                avgDailyNote.textContent = analytics.transactionCount ? `${analytics.transactionCount} tracked transactions` : 'Add expenses to see daily averages';
+            }
+
+            const savingsNote = document.querySelector('#savingsRateValue + p');
+            if (savingsNote) {
+                savingsNote.textContent = analytics.budgetLeft >= 0 ? 'Budget is still in a healthy range' : 'You are currently over budget';
+                savingsNote.className = `metric-note ${analytics.budgetLeft >= 0 ? 'positive' : 'negative'}`;
+            }
+
+            const predictedNote = document.querySelector('#predictedMonthlyValue + p');
+            if (predictedNote) {
+                predictedNote.textContent = analytics.transactionCount ? 'Projection based on your current month' : 'Projection updates after your first expense';
+            }
+
+            updateChartsWithRealData(analytics);
+        }
+
+        window.addEventListener('fincast_data_change', function() {
+            renderAnalytics();
+        });
     </script>
 </body>
 </html>

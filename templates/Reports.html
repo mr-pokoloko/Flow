@@ -51,7 +51,7 @@
                         <div class="tile-icon"><i class="fas fa-calendar-alt"></i></div>
                         <h5 class="tile-title">Monthly Report</h5>
                         <p class="tile-copy">A complete spending summary with category breakdowns and trends for any month.</p>
-                        <button class="btn btn-primary w-100"><i class="fas fa-download"></i> Generate PDF</button>
+                        <button class="btn btn-primary w-100 report-generate-btn" data-report-type="monthly"><i class="fas fa-download"></i> Generate Report</button>
                     </div>
                 </div>
                 <div class="col-lg-4 col-md-6">
@@ -59,7 +59,7 @@
                         <div class="tile-icon"><i class="fas fa-chart-pie"></i></div>
                         <h5 class="tile-title">Category Analysis</h5>
                         <p class="tile-copy">See category distribution, movement over time, and top contributors in one report.</p>
-                        <button class="btn btn-primary w-100"><i class="fas fa-download"></i> Generate PDF</button>
+                        <button class="btn btn-primary w-100 report-generate-btn" data-report-type="category"><i class="fas fa-download"></i> Generate Report</button>
                     </div>
                 </div>
                 <div class="col-lg-4 col-md-6">
@@ -67,7 +67,7 @@
                         <div class="tile-icon"><i class="fas fa-bullseye"></i></div>
                         <h5 class="tile-title">Budget Report</h5>
                         <p class="tile-copy">Compare planned versus actual spending and highlight the biggest gaps clearly.</p>
-                        <button class="btn btn-primary w-100"><i class="fas fa-download"></i> Generate PDF</button>
+                        <button class="btn btn-primary w-100 report-generate-btn" data-report-type="budget"><i class="fas fa-download"></i> Generate Report</button>
                     </div>
                 </div>
             </div>
@@ -94,38 +94,7 @@
                                 <th class="text-center">Actions</th>
                             </tr>
                         </thead>
-                        <tbody>
-                            <tr>
-                                <td><strong>January 2024 Report</strong></td>
-                                <td class="muted-copy">Jan 1 - Jan 31, 2024</td>
-                                <td class="muted-copy">Feb 1, 2024</td>
-                                <td class="muted-copy">2.4 MB</td>
-                                <td class="text-center">
-                                    <button class="btn btn-soft btn-sm"><i class="fas fa-download"></i> Download</button>
-                                    <button class="btn btn-danger-soft btn-sm"><i class="fas fa-trash"></i></button>
-                                </td>
-                            </tr>
-                            <tr>
-                                <td><strong>Q4 2023 Analysis</strong></td>
-                                <td class="muted-copy">Oct 1 - Dec 31, 2023</td>
-                                <td class="muted-copy">Jan 5, 2024</td>
-                                <td class="muted-copy">5.1 MB</td>
-                                <td class="text-center">
-                                    <button class="btn btn-soft btn-sm"><i class="fas fa-download"></i> Download</button>
-                                    <button class="btn btn-danger-soft btn-sm"><i class="fas fa-trash"></i></button>
-                                </td>
-                            </tr>
-                            <tr>
-                                <td><strong>Annual Budget Review 2023</strong></td>
-                                <td class="muted-copy">Jan 1 - Dec 31, 2023</td>
-                                <td class="muted-copy">Jan 2, 2024</td>
-                                <td class="muted-copy">8.7 MB</td>
-                                <td class="text-center">
-                                    <button class="btn btn-soft btn-sm"><i class="fas fa-download"></i> Download</button>
-                                    <button class="btn btn-danger-soft btn-sm"><i class="fas fa-trash"></i></button>
-                                </td>
-                            </tr>
-                        </tbody>
+                        <tbody id="reportsTableBody"></tbody>
                     </table>
                 </div>
             </div>
@@ -148,19 +117,11 @@
         }
 
         document.addEventListener('DOMContentLoaded', function() {
-            const fullName = localStorage.getItem('fincastFullName');
-            const username = localStorage.getItem('fincastUser');
-            if (fullName) {
-                document.getElementById('profileName').textContent = fullName;
-            } else if (username) {
-                document.getElementById('profileName').textContent = username;
-            }
-
-            if (window.FinCastData) {
-                const analytics = FinCastData.getAnalytics();
-                yearlyChart.data.datasets[0].data = analytics.monthlyTotals;
-                yearlyChart.update();
-            }
+            if (!window.FinCastData?.requireAuth()) return;
+            document.getElementById('profileName').textContent = FinCastData.getDisplayName();
+            bindReportActions();
+            renderReports();
+            updateYearlyChart();
         });
 
         const yearlyChart = new Chart(document.getElementById('yearlyChart'), {
@@ -206,6 +167,75 @@
                         grid: { display: false }
                     }
                 }
+            }
+        });
+
+        function bindReportActions() {
+            document.querySelectorAll('.report-generate-btn').forEach(button => {
+                button.addEventListener('click', function() {
+                    const report = FinCastData.createReport(this.dataset.reportType);
+                    renderReports();
+                    FinCastData.downloadReport(report.id);
+                });
+            });
+        }
+
+        function renderReports() {
+            const tbody = document.getElementById('reportsTableBody');
+            const reports = FinCastData.getReports();
+
+            if (!reports.length) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="5">
+                            <div class="empty-state">
+                                <div class="empty-state-icon"><i class="fas fa-file-lines"></i></div>
+                                <p class="mb-0">No reports generated yet</p>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = reports.map(report => `
+                <tr>
+                    <td><strong>${report.name}</strong></td>
+                    <td class="muted-copy">${report.period}</td>
+                    <td class="muted-copy">${FinCastData.formatDate(report.generatedOn)}</td>
+                    <td class="muted-copy">${report.size}</td>
+                    <td class="text-center">
+                        <button class="btn btn-soft btn-sm" onclick="downloadReportById('${report.id}')"><i class="fas fa-download"></i> Download</button>
+                        <button class="btn btn-danger-soft btn-sm" onclick="deleteReportById('${report.id}')"><i class="fas fa-trash"></i></button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function updateYearlyChart() {
+            const analytics = FinCastData.getAnalytics();
+            yearlyChart.data.datasets[0].data = analytics.monthlyTotals;
+            yearlyChart.data.datasets[1].data = analytics.previousYearMonthlyTotals;
+            yearlyChart.update();
+        }
+
+        function downloadReportById(id) {
+            const downloaded = FinCastData.downloadReport(id);
+            if (!downloaded) {
+                alert('That report could not be downloaded.');
+            }
+        }
+
+        function deleteReportById(id) {
+            if (!confirm('Delete this saved report?')) return;
+            FinCastData.deleteReport(id);
+            renderReports();
+        }
+
+        window.addEventListener('fincast_data_change', function(event) {
+            if (['report_created', 'report_deleted', 'expense_added', 'expense_deleted', 'expense_updated', 'expenses_replaced'].includes(event.detail.event)) {
+                renderReports();
+                updateYearlyChart();
             }
         });
     </script>

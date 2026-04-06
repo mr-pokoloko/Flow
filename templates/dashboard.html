@@ -86,6 +86,10 @@
                                 <option>Transport</option>
                                 <option>Shopping</option>
                                 <option>Bills</option>
+                                <option>Entertainment</option>
+                                <option>Health</option>
+                                <option>Education</option>
+                                <option>Other</option>
                             </select>
                             <input type="date" id="expense-date" class="form-control mb-3">
                             <button class="btn btn-primary w-100"><i class="fas fa-plus"></i> Add Expense</button>
@@ -120,6 +124,10 @@
                                     <option>Food</option>
                                     <option>Transport</option>
                                     <option>Shopping</option>
+                                    <option>Entertainment</option>
+                                    <option>Health</option>
+                                    <option>Education</option>
+                                    <option>Other</option>
                                 </select>
                                 <select id="r_frequency" class="form-select mb-2">
                                     <option value="monthly">Monthly</option>
@@ -230,13 +238,8 @@
         }
 
         document.addEventListener('DOMContentLoaded', function() {
-            const fullName = localStorage.getItem('fincastFullName');
-            const username = localStorage.getItem('fincastUser');
-            if (fullName) {
-                document.getElementById('profileName').textContent = fullName;
-            } else if (username) {
-                document.getElementById('profileName').textContent = username;
-            }
+            if (!window.FinCastData?.requireAuth()) return;
+            document.getElementById('profileName').textContent = FinCastData.getDisplayName();
         });
     </script>
 </body>

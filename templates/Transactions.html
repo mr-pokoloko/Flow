@@ -49,29 +49,25 @@
                     <div class="col-md-4">
                         <div class="input-group">
                             <span class="input-group-text"><i class="fas fa-search"></i></span>
-                            <input type="text" class="form-control" placeholder="Search transactions...">
+                            <input type="text" class="form-control" id="transactionSearch" placeholder="Search transactions...">
                         </div>
                     </div>
                     <div class="col-md-3">
-                        <select class="form-select">
-                            <option>All Categories</option>
-                            <option>Food</option>
-                            <option>Transport</option>
-                            <option>Shopping</option>
-                            <option>Bills</option>
+                        <select class="form-select" id="categoryFilter">
+                            <option value="all">All Categories</option>
                         </select>
                     </div>
                     <div class="col-md-3">
-                        <select class="form-select">
-                            <option>All Time</option>
-                            <option>Today</option>
-                            <option>This Week</option>
-                            <option>This Month</option>
-                            <option>This Year</option>
+                        <select class="form-select" id="dateFilter">
+                            <option value="all">All Time</option>
+                            <option value="today">Today</option>
+                            <option value="week">This Week</option>
+                            <option value="month">This Month</option>
+                            <option value="year">This Year</option>
                         </select>
                     </div>
                     <div class="col-md-2 text-end">
-                        <button class="btn btn-primary w-100"><i class="fas fa-download"></i> Export</button>
+                        <button class="btn btn-primary w-100" id="exportTransactionsBtn"><i class="fas fa-download"></i> Export</button>
                     </div>
                 </div>
             </div>
@@ -104,13 +100,7 @@
                     <div class="d-flex justify-content-between align-items-center">
                         <span class="muted-copy" id="transactionCount">Showing 0 transactions</span>
                         <nav aria-label="Page navigation">
-                            <ul class="pagination mb-0">
-                                <li class="page-item disabled"><a class="page-link" href="#"><i class="fas fa-chevron-left"></i></a></li>
-                                <li class="page-item active"><a class="page-link" href="#">1</a></li>
-                                <li class="page-item"><a class="page-link" href="#">2</a></li>
-                                <li class="page-item"><a class="page-link" href="#">3</a></li>
-                                <li class="page-item"><a class="page-link" href="#"><i class="fas fa-chevron-right"></i></a></li>
-                            </ul>
+                            <ul class="pagination mb-0" id="transactionPagination"></ul>
                         </nav>
                     </div>
                 </div>
@@ -120,27 +110,25 @@
 
     <script src="/js/data.js"></script>
     <script>
+        const PAGE_SIZE = 5;
+        let currentPage = 1;
+        let filteredExpenses = [];
+
         function toggleSidebar() {
             document.querySelector('.sidebar').classList.toggle('active');
             document.querySelector('.sidebar-overlay').classList.toggle('active');
         }
 
         document.addEventListener('DOMContentLoaded', function() {
-            const fullName = localStorage.getItem('fincastFullName');
-            const username = localStorage.getItem('fincastUser');
-            if (fullName) {
-                document.getElementById('profileName').textContent = fullName;
-            } else if (username) {
-                document.getElementById('profileName').textContent = username;
-            }
-
-            if (window.FinCastData) {
-                loadTransactions();
-            }
+            if (!window.FinCastData?.requireAuth()) return;
+            document.getElementById('profileName').textContent = FinCastData.getDisplayName();
+            populateCategoryFilter();
+            bindControls();
+            loadTransactions();
         });
 
         function loadTransactions() {
-            const expenses = FinCastData.getExpenses();
+            const expenses = applyFilters(FinCastData.getExpenses());
             const tbody = document.getElementById('transactionTableBody');
             tbody.innerHTML = '';
 
@@ -165,10 +153,15 @@
                     </tr>
                 `;
                 document.getElementById('transactionCount').textContent = 'Showing 0 transactions';
+                renderPagination(0);
                 return;
             }
 
-            expenses.forEach(expense => {
+            filteredExpenses = expenses;
+            const start = (currentPage - 1) * PAGE_SIZE;
+            const pageItems = expenses.slice(start, start + PAGE_SIZE);
+
+            pageItems.forEach(expense => {
                 const row = document.createElement('tr');
                 row.innerHTML = `
                     <td>
@@ -181,17 +174,19 @@
                         </div>
                     </td>
                     <td><span class="category-badge">${expense.category}</span></td>
-                    <td class="muted-copy">${expense.date}</td>
-                    <td class="text-end"><strong class="amount-negative">-\u20B9${expense.amount}</strong></td>
+                    <td class="muted-copy">${FinCastData.formatDate(expense.date)}</td>
+                    <td class="text-end"><strong class="amount-negative">-${FinCastData.formatCurrency(expense.amount)}</strong></td>
                     <td class="text-center">
-                        <button class="action-btn edit" onclick="editExpense(${expense.id})"><i class="fas fa-pen"></i></button>
-                        <button class="action-btn delete" onclick="deleteExpense(${expense.id})"><i class="fas fa-trash"></i></button>
+                        <button class="action-btn edit" onclick="editExpense('${expense.id}')"><i class="fas fa-pen"></i></button>
+                        <button class="action-btn delete" onclick="deleteExpense('${expense.id}')"><i class="fas fa-trash"></i></button>
                     </td>
                 `;
                 tbody.appendChild(row);
             });
 
-            document.getElementById('transactionCount').textContent = `Showing 1-${expenses.length} of ${expenses.length} transactions`;
+            const end = Math.min(start + PAGE_SIZE, expenses.length);
+            document.getElementById('transactionCount').textContent = `Showing ${start + 1}-${end} of ${expenses.length} transactions`;
+            renderPagination(expenses.length);
         }
 
         function deleteExpense(id) {
@@ -201,10 +196,145 @@
         }
 
         function editExpense(id) {
-            window.location.href = 'dashboard.html?edit=' + id;
+            const expense = FinCastData.getExpenses().find(item => String(item.id) === String(id));
+            if (!expense) return;
+
+            const name = prompt('Expense name', expense.name);
+            if (name === null) return;
+            const amount = prompt('Amount', expense.amount);
+            if (amount === null) return;
+            const category = prompt('Category', expense.category);
+            if (category === null) return;
+            const date = prompt('Date (YYYY-MM-DD)', expense.date);
+            if (date === null) return;
+
+            FinCastData.updateExpense(id, {
+                name: name.trim(),
+                amount: Number(amount),
+                category: category.trim() || 'Other',
+                date: date.trim()
+            });
+            loadTransactions();
+        }
+
+        function bindControls() {
+            document.getElementById('transactionSearch').addEventListener('input', resetAndReload);
+            document.getElementById('categoryFilter').addEventListener('change', resetAndReload);
+            document.getElementById('dateFilter').addEventListener('change', resetAndReload);
+            document.getElementById('exportTransactionsBtn').addEventListener('click', exportTransactions);
+        }
+
+        function resetAndReload() {
+            currentPage = 1;
+            loadTransactions();
+        }
+
+        function populateCategoryFilter() {
+            const select = document.getElementById('categoryFilter');
+            const categories = [...new Set(FinCastData.getExpenses().map(item => item.category || 'Other'))].sort();
+            select.innerHTML = '<option value="all">All Categories</option>' + categories.map(category => {
+                return `<option value="${category}">${category}</option>`;
+            }).join('');
+        }
+
+        function applyFilters(expenses) {
+            const searchValue = document.getElementById('transactionSearch').value.trim().toLowerCase();
+            const categoryValue = document.getElementById('categoryFilter').value;
+            const dateValue = document.getElementById('dateFilter').value;
+            const now = new Date();
+
+            return expenses.filter(expense => {
+                const matchesSearch = !searchValue || [expense.name, expense.category, expense.date]
+                    .join(' ')
+                    .toLowerCase()
+                    .includes(searchValue);
+
+                const matchesCategory = categoryValue === 'all' || expense.category === categoryValue;
+                const expenseDate = new Date(expense.date);
+
+                let matchesDate = true;
+                if (!Number.isNaN(expenseDate.getTime())) {
+                    if (dateValue === 'today') {
+                        matchesDate = expenseDate.toDateString() === now.toDateString();
+                    } else if (dateValue === 'week') {
+                        const diff = (now - expenseDate) / (1000 * 60 * 60 * 24);
+                        matchesDate = diff >= 0 && diff <= 7;
+                    } else if (dateValue === 'month') {
+                        matchesDate = expenseDate.getMonth() === now.getMonth() && expenseDate.getFullYear() === now.getFullYear();
+                    } else if (dateValue === 'year') {
+                        matchesDate = expenseDate.getFullYear() === now.getFullYear();
+                    }
+                }
+
+                return matchesSearch && matchesCategory && matchesDate;
+            });
+        }
+
+        function renderPagination(totalItems) {
+            const pagination = document.getElementById('transactionPagination');
+            const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE));
+            currentPage = Math.min(currentPage, totalPages);
+
+            const items = [];
+            items.push(`
+                <li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
+                    <a class="page-link" href="#" data-page="${currentPage - 1}"><i class="fas fa-chevron-left"></i></a>
+                </li>
+            `);
+
+            for (let page = 1; page <= totalPages; page += 1) {
+                items.push(`
+                    <li class="page-item ${page === currentPage ? 'active' : ''}">
+                        <a class="page-link" href="#" data-page="${page}">${page}</a>
+                    </li>
+                `);
+            }
+
+            items.push(`
+                <li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
+                    <a class="page-link" href="#" data-page="${currentPage + 1}"><i class="fas fa-chevron-right"></i></a>
+                </li>
+            `);
+
+            pagination.innerHTML = items.join('');
+            pagination.querySelectorAll('a[data-page]').forEach(link => {
+                link.addEventListener('click', function(event) {
+                    event.preventDefault();
+                    const page = Number(this.dataset.page);
+                    if (page < 1 || page > totalPages || page === currentPage) return;
+                    currentPage = page;
+                    loadTransactions();
+                });
+            });
+        }
+
+        function exportTransactions() {
+            const rows = filteredExpenses.length ? filteredExpenses : applyFilters(FinCastData.getExpenses());
+            if (!rows.length) {
+                alert('There are no transactions to export.');
+                return;
+            }
+
+            const csv = [
+                'Name,Category,Date,Amount',
+                ...rows.map(item => {
+                    return `"${item.name}","${item.category}","${item.date}","${item.amount}"`;
+                })
+            ].join('\n');
+
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'flow-transactions.csv';
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            URL.revokeObjectURL(url);
         }
 
         window.addEventListener('fincast_data_change', function() {
+            populateCategoryFilter();
             loadTransactions();
         });
     </script>

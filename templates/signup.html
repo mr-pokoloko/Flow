@@ -86,15 +86,26 @@
         </section>
     </div>
 
+    <script src="/js/data.js"></script>
     <script>
-        document.getElementById('signupForm').addEventListener('submit', function(e) {
-            e.preventDefault();
-            localStorage.setItem('fincastLoggedIn', 'true');
-            localStorage.setItem('fincastUser', document.querySelector('input[name="username"]').value);
-            localStorage.setItem('fincastFullName', document.querySelector('input[name="fullname"]').value);
-            localStorage.setItem('fincastEmail', document.querySelector('input[name="email"]').value);
-            localStorage.setItem('fincastPhone', document.querySelector('input[name="phone"]').value);
+        if (window.FinCastData?.isAuthenticated()) {
             window.location.href = 'dashboard.html';
+        }
+
+        document.getElementById('signupForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const fullName = document.getElementById('fullName').value.trim();
+            const username = document.getElementById('username').value.trim();
+            const email = document.getElementById('email').value.trim();
+            const phone = document.getElementById('phone').value.trim();
+            const password = document.getElementById('password').value;
+
+            try {
+                await FinCastData.registerUser({ fullName, username, email, phone, password });
+                window.location.href = 'dashboard.html';
+            } catch (error) {
+                alert(error.message || 'Unable to create your account.');
+            }
         });
     </script>
 </body>
