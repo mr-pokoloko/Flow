@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flow - Analytics</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+    <button class="sidebar-toggle" onclick="toggleSidebar()" aria-label="Toggle sidebar"><i class="fas fa-bars"></i></button>
+    <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+    <aside class="sidebar">
+        <div class="sidebar-logo">
+            <div class="logo-icon"><i class="fas fa-chart-pie"></i></div>
+            <h3 class="logo-text">Flow</h3>
+        </div>
+        <div class="profile-section">
+            <div class="profile-photo"><i class="fas fa-user"></i></div>
+            <div class="username" id="profileName">John Doe</div>
+            <div class="user-role">Analytics</div>
+        </div>
+        <nav class="sidebar-nav">
+            <ul class="menu">
+                <li><a href="dashboard.html"><i class="fas fa-th-large"></i><span>Dashboard</span></a></li>
+                <li class="active"><a href="Analytics.html"><i class="fas fa-chart-line"></i><span>Analytics</span></a></li>
+                <li><a href="Transactions.html"><i class="fas fa-wallet"></i><span>Transactions</span></a></li>
+                <li><a href="Reports.html"><i class="fas fa-file-alt"></i><span>Reports</span></a></li>
+                <li><a href="Settings.html"><i class="fas fa-cog"></i><span>Settings</span></a></li>
+            </ul>
+        </nav>
+        <a href="../index.html" class="signout-btn"><i class="fas fa-sign-out-alt"></i><span>Sign Out</span></a>
+    </aside>
+
+    <div class="main-content">
+        <div class="container-fluid page-shell">
+            <div class="page-header">
+                <h1 class="page-title"><span class="title-icon"><i class="fas fa-chart-line"></i></span>Analytics Overview</h1>
+                <p class="page-subtitle">Review spending patterns, category performance, and projected monthly behavior without leaving the same visual system.</p>
+            </div>
+
+            <div class="row g-4 mb-4">
+                <div class="col-lg-3 col-md-6">
+                    <div class="card metric-card shadow h-100">
+                        <div class="metric-icon"><i class="fas fa-calendar-day"></i></div>
+                        <p class="metric-label">Average Daily Spend</p>
+                        <h3 class="metric-value" id="avgDailyValue">&#8377;245</h3>
+                        <p class="metric-note positive"><i class="fas fa-arrow-up"></i> 12% vs last month</p>
+                    </div>
+                </div>
+                <div class="col-lg-3 col-md-6">
+                    <div class="card metric-card shadow h-100">
+                        <div class="metric-icon"><i class="fas fa-layer-group"></i></div>
+                        <p class="metric-label">Top Category</p>
+                        <h3 class="metric-value" id="topCategoryValue">Food</h3>
+                        <p class="metric-note negative">35% of total spending</p>
+                    </div>
+                </div>
+                <div class="col-lg-3 col-md-6">
+                    <div class="card metric-card shadow h-100">
+                        <div class="metric-icon"><i class="fas fa-piggy-bank"></i></div>
+                        <p class="metric-label">Savings Rate</p>
+                        <h3 class="metric-value" id="savingsRateValue">18%</h3>
+                        <p class="metric-note positive"><i class="fas fa-arrow-up"></i> 5% improvement</p>
+                    </div>
+                </div>
+                <div class="col-lg-3 col-md-6">
+                    <div class="card metric-card shadow h-100">
+                        <div class="metric-icon"><i class="fas fa-wand-magic-sparkles"></i></div>
+                        <p class="metric-label">Predicted Monthly</p>
+                        <h3 class="metric-value" id="predictedMonthlyValue">&#8377;4,850</h3>
+                        <p class="metric-note neutral">Based on current spending behavior</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row g-4 mb-4">
+                <div class="col-lg-6">
+                    <div class="card chart-card shadow p-4">
+                        <h5><i class="section-icon fas fa-chart-bar"></i>Spending by Category</h5>
+                        <div class="chart-frame">
+                            <canvas id="categoryBarChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-6">
+                    <div class="card chart-card shadow p-4">
+                        <h5><i class="section-icon fas fa-chart-area"></i>Monthly Comparison</h5>
+                        <div class="chart-frame">
+                            <canvas id="monthlyComparisonChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row g-4">
+                <div class="col-12">
+                    <div class="card chart-card shadow p-4">
+                        <h5><i class="section-icon fas fa-chart-line"></i>6-Month Spending Trend</h5>
+                        <div class="chart-frame chart-frame-tall">
+                            <canvas id="trendChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/data.js"></script>
+    <script>
+        const analyticsPalette = {
+            indigo: '#2b2d42',
+            lavender: '#8d99ae',
+            platinum: '#edf2f4',
+            red: '#ef233c',
+            crimson: '#d80032',
+            redSoft: 'rgba(239, 35, 60, 0.15)',
+            crimsonSoft: 'rgba(216, 0, 50, 0.12)',
+            lavenderSoft: 'rgba(141, 153, 174, 0.14)',
+            indigoSoft: 'rgba(43, 45, 66, 0.14)'
+        };
+
+        function toggleSidebar() {
+            document.querySelector('.sidebar').classList.toggle('active');
+            document.querySelector('.sidebar-overlay').classList.toggle('active');
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const fullName = localStorage.getItem('fincastFullName');
+            const username = localStorage.getItem('fincastUser');
+            if (fullName) {
+                document.getElementById('profileName').textContent = fullName;
+            } else if (username) {
+                document.getElementById('profileName').textContent = username;
+            }
+
+            if (window.FinCastData) {
+                const analytics = FinCastData.getAnalytics();
+                document.getElementById('avgDailyValue').textContent = '\u20B9' + Math.round(analytics.averageTransaction || 0);
+                document.getElementById('topCategoryValue').textContent = analytics.topCategory || '-';
+                const savingsRate = analytics.totalSpent > 0
+                    ? Math.round(((analytics.budgetLeft > 0 ? analytics.budgetLeft : 0) / (analytics.totalSpent + analytics.budgetLeft)) * 100)
+                    : 0;
+                document.getElementById('savingsRateValue').textContent = savingsRate + '%';
+                const currentMonth = new Date().getMonth();
+                document.getElementById('predictedMonthlyValue').textContent = '\u20B9' + (analytics.monthlyTotals[currentMonth] || 0);
+                updateChartsWithRealData(analytics);
+            }
+        });
+
+        const sharedOptions = {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    labels: {
+                        color: analyticsPalette.indigo,
+                        font: { family: 'Manrope', weight: '700' }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    grid: { color: analyticsPalette.indigoSoft },
+                    ticks: { color: analyticsPalette.indigo }
+                },
+                x: {
+                    grid: { display: false },
+                    ticks: { color: analyticsPalette.indigo }
+                }
+            }
+        };
+
+        const categoryBarChart = new Chart(document.getElementById('categoryBarChart'), {
+            type: 'bar',
+            data: {
+                labels: ['Food', 'Transport', 'Shopping', 'Bills', 'Entertainment', 'Health'],
+                datasets: [{
+                    label: 'Amount (\u20B9)',
+                    data: [0, 0, 0, 0, 0, 0],
+                    backgroundColor: [
+                        analyticsPalette.red,
+                        analyticsPalette.crimson,
+                        analyticsPalette.lavender,
+                        analyticsPalette.indigo,
+                        analyticsPalette.redSoft,
+                        analyticsPalette.lavenderSoft
+                    ],
+                    borderRadius: 12
+                }]
+            },
+            options: {
+                ...sharedOptions,
+                plugins: { legend: { display: false } }
+            }
+        });
+
+        const monthlyComparisonChart = new Chart(document.getElementById('monthlyComparisonChart'), {
+            type: 'line',
+            data: {
+                labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+                datasets: [{
+                    label: 'This Year',
+                    data: Array(12).fill(0),
+                    borderColor: analyticsPalette.red,
+                    backgroundColor: analyticsPalette.redSoft,
+                    fill: true,
+                    tension: 0.4
+                }, {
+                    label: 'Last Year',
+                    data: Array(12).fill(0),
+                    borderColor: analyticsPalette.lavender,
+                    backgroundColor: analyticsPalette.lavenderSoft,
+                    fill: true,
+                    tension: 0.4
+                }]
+            },
+            options: sharedOptions
+        });
+
+        const trendChart = new Chart(document.getElementById('trendChart'), {
+            type: 'line',
+            data: {
+                labels: ['Week 1', 'Week 2', 'Week 3', 'Week 4', 'Week 5', 'Week 6'],
+                datasets: [{
+                    label: 'Spending Trend',
+                    data: [0, 0, 0, 0, 0, 0],
+                    borderColor: analyticsPalette.crimson,
+                    backgroundColor: analyticsPalette.crimsonSoft,
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 5,
+                    pointBackgroundColor: analyticsPalette.red
+                }]
+            },
+            options: {
+                ...sharedOptions,
+                plugins: { legend: { display: false } }
+            }
+        });
+
+        function updateChartsWithRealData(analytics) {
+            categoryBarChart.data.datasets[0].data = [
+                analytics.categoryTotals['Food'] || 0,
+                analytics.categoryTotals['Transport'] || 0,
+                analytics.categoryTotals['Shopping'] || 0,
+                analytics.categoryTotals['Bills'] || 0,
+                analytics.categoryTotals['Entertainment'] || 0,
+                analytics.categoryTotals['Health'] || 0
+            ];
+            categoryBarChart.update();
+
+            monthlyComparisonChart.data.datasets[0].data = analytics.monthlyTotals;
+            monthlyComparisonChart.update();
+
+            trendChart.data.datasets[0].data = analytics.monthlyTotals.slice(-6);
+            trendChart.update();
+        }
+    </script>
+</body>
+</html>

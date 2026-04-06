@@ -1,0 +1,348 @@
+let expenses = [];
+let monthlyBudget = 5000;
+
+
+//-----Create Daily Spending Bar Chart------
+
+document.addEventListener("DOMContentLoaded", function(){
+//-----Create Category Pie Chart------
+    const ctx1 = document.getElementById("categoryChart");
+
+    window.categoryChart = new Chart(ctx1,{
+        type:"pie",
+        data:{
+            labels:['Food','Transport','Shopping','Bills'],
+            datasets:[{
+                data:[0,0,0,0],
+                backgroundColor:[
+                    '#3B82F6',
+                    '#10B981',
+                    '#F59E0B',
+                    '#EF4444'
+                ]
+            }]
+        },
+        options:{
+        responsive:true,
+        maintainAspectRatio:false
+        }
+    });
+    //-----Create Category Bar Chart------
+    const ctx2 = document.getElementById('dailyChart');
+
+    window.dailyChart = new Chart(ctx2, {
+        type: 'bar',
+        data: {
+            labels: [],
+            datasets: [{
+                label: 'Daily Spending',
+                data: []
+            }]
+        },
+        options:{
+        responsive:true,
+        maintainAspectRatio:false
+        }
+    });
+
+    //-----Create Category Dougnut Chart------
+    const budgetCtx = document.getElementById("budgetChart");
+
+    window.budgetChart = new Chart(budgetCtx, {
+        type: "doughnut",
+        data: {
+            labels: ["Spent","Remaining"],
+            datasets:[{
+                data: [0,5000],
+                backgroundColor: [
+                    "#EF4444",
+                    "#10B981"
+                ]
+            }]
+        },
+        options:{
+            responsive:true,
+            maintainAspectRatio:false,
+            cutout:"70%",
+            animation:{
+            animateRotate:true,
+            duration:800
+            },
+            plugins:{
+                legend:{
+                    position:"top"
+                }
+            }
+        },
+        plugins:{
+            legend:{position:"top"},
+            tooltip:{enabled:true}
+        }
+    });
+
+    //-----Create Monthly Trend Line Chart------
+    const ctxMonthly = document.getElementById("monthlyChart");
+
+    window.monthlyChart = new Chart(ctxMonthly, {
+        type: "line",
+        data: {
+            labels: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
+            datasets: [{
+                label: "Monthly Spending",
+                data: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                borderColor: "#F59E0B",
+                backgroundColor: "rgba(245, 158, 11, 0.2)",
+                fill: true,
+                tension: 0.4,
+                pointBackgroundColor: "#F59E0B",
+                pointBorderColor: "#F59E0B",
+                pointRadius: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                x: {
+                    display: false
+                },
+                y: {
+                    display: false
+                }
+            }
+        }
+    });
+});
+
+
+//-----Handle Form Submission------
+
+document.addEventListener("DOMContentLoaded", function(){
+
+document
+.getElementById("expense-form")
+.addEventListener("submit", function(e){
+
+    e.preventDefault();
+
+    const name =
+    document.getElementById("expense-name").value;
+
+    const amount =
+    document.getElementById("expense-amount").value;
+
+    const category =
+    document.getElementById("expense-category").value;
+
+    let date =
+    document.getElementById("expense-date").value;
+
+    // convert DD/MM/YYYY → YYYY-MM-DD if needed
+    if(date.includes("/")){
+        let parts = date.split("/");
+        date = `${parts[2]}-${parts[1]}-${parts[0]}`;
+    }
+
+    const expense = {
+        name,
+        amount,
+        category,
+        date
+    };
+
+    expenses.push(expense);
+
+    addExpenseToTable(expense);
+
+    updateCharts();
+
+    updateBudgetStatus();
+
+    document.getElementById("expense-form").reset();
+});
+});
+
+
+//-----Add Expense to Table------
+
+function addExpenseToTable(expense){
+
+    const table =
+    document.getElementById("expense-list");
+
+    const row = document.createElement("tr");
+
+    row.innerHTML = `
+    <td>${expense.name}</td>
+    <td>${expense.amount}</td>
+    <td>${expense.category}</td>
+    <td>${expense.date}</td>
+    `;
+
+    table.appendChild(row);
+
+}
+
+//-----Update Charts------
+
+function updateCharts(){
+
+let categoryTotals = {
+Food:0,
+Transport:0,
+Shopping:0,
+Bills:0
+};
+
+let dailyTotals = {};
+
+expenses.forEach(exp => {
+
+categoryTotals[exp.category] += Number(exp.amount);
+
+if(!dailyTotals[exp.date]){
+dailyTotals[exp.date] = 0;
+}
+
+dailyTotals[exp.date] += Number(exp.amount);
+
+});
+
+categoryChart.data.datasets[0].data =
+Object.values(categoryTotals);
+
+categoryChart.update();
+
+dailyChart.data.labels =
+Object.keys(dailyTotals);
+
+dailyChart.data.datasets[0].data =
+Object.values(dailyTotals);
+
+dailyChart.update();
+
+// Update monthly trend chart
+updateMonthlyChart();
+
+// Update total expense display
+let total = 0;
+
+expenses.forEach(e => {
+total += Number(e.amount);
+});
+
+document.getElementById("total-expense").innerText =
+"₹" + total;
+document.getElementById("budget-balance").innerText =
+"₹" - total;
+}
+
+//-----Calculate Spending for Month or Year------
+
+function calculateSpending(){
+
+let total = 0;
+
+expenses.forEach(exp => {
+total += Number(exp.amount);
+});
+
+return total;
+
+}
+
+//-----Budget Analysis Logic------
+
+function updateBudgetStatus(){
+
+let spent = calculateSpending();
+
+if(isNaN(spent)) spent = 0;
+
+let remaining = monthlyBudget - spent;
+
+if(remaining < 0) remaining = 0;
+
+// Update donut chart
+budgetChart.data.datasets[0].data = [
+spent,
+remaining
+];
+
+budgetChart.update();
+
+// Update budget card
+const budgetBalance = document.getElementById("budget-balance");
+
+if(budgetBalance){
+budgetBalance.innerText = "₹" + remaining;
+}
+
+// Update status message
+let message = "";
+
+if(spent < monthlyBudget * 0.6){
+
+message = "✅ You are doing great this month! Keep saving.";
+
+}
+else if(spent < monthlyBudget){
+
+message = "⚠️ You are close to your monthly budget.";
+
+}
+else{
+
+message = "❌ Warning: You exceeded your monthly budget.";
+
+}
+
+document.getElementById("budget-message").innerText = message;
+
+}
+
+//-----Update Monthly Trend Chart------
+
+function updateMonthlyChart(){
+
+let monthlyTotals = new Array(12).fill(0);
+
+expenses.forEach(exp => {
+
+const date = new Date(exp.date);
+const month = date.getMonth();
+
+if(month >= 0 && month < 12){
+monthlyTotals[month] += Number(exp.amount);
+}
+
+});
+
+monthlyChart.data.datasets[0].data = monthlyTotals;
+monthlyChart.update();
+
+}
+//----Connect Frontend with Backend (API)------//
+/*
+fetch("/add-expense",{
+
+method:"POST",
+
+headers:{
+"Content-Type":"application/json"
+},
+
+body:JSON.stringify(expense)
+
+})
+.then(res => res.json())
+.then(data => {
+
+addExpenseToTable(expense);
+
+updateBudgetStatus();();
+
+});*/

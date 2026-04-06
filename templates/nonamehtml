@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Expense Tracker Dashboard</title>
+
+    <!-- Bootstrap -->
+    <link rel="stylesheet"
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- Styles.css -->
+     <link rel="stylesheet" href="/css/styles.css">
+
+</head>
+
+<body>
+    <div class="sidebar">
+        <h3 class="logo">💰 FinTrack</h3>
+        <ul class="menu">
+            <li class="active">Dashboard</li>
+            <li>Analytics</li>
+            <li>Transactions</li>
+            <li>Reports</li>
+            <li>Settings</li>
+        </ul>
+    </div>
+
+<nav class="navbar navbar-dark bg-dark shadow">
+    <div class="container">
+        <span class="navbar-brand fw-bold">
+        💰 Smart Expense Tracker
+        </span>
+    </div>
+</nav>
+
+<div class="main-content">
+
+<div class="container-fluid mt-4">
+
+    <!--Spending & Budget-->
+    <div class="card shadow p-4 mb-4 h-100 summary-card">
+
+    <div class="row text-center">
+
+    <div class="col-6 border-end">
+    <h6 class="text-muted">Total Spending</h6>
+    <h2 id="total-expense" class="fw-bold text-danger">₹0</h2>
+    </div>
+
+    <div class="col-6">
+    <h6 class="text-muted">Budget Left</h6>
+    <h2 id="budget-balance" class="fw-bold text-success">₹5000</h2>
+    </div>
+
+    </div>
+
+    </div>
+
+<!-- ROW 1 : SUMMARY CARDS -->
+
+<div class="row g-4">
+
+<div class="col-lg-4 col-md-6">
+
+<div class="card shadow p-3 h-100">
+<h5>Add Expense</h5>
+
+<form id="expense-form">
+
+<input type="text" id="expense-name"
+class="form-control mb-2"
+placeholder="Expense Name" required>
+
+<input type="number" id="expense-amount"
+class="form-control mb-2"
+placeholder="Amount" required>
+
+<select id="expense-category"
+class="form-control mb-2">
+
+<option>Food</option>
+<option>Transport</option>
+<option>Shopping</option>
+<option>Bills</option>
+
+</select>
+
+<input type="date"
+id="expense-date"
+class="form-control mb-3">
+
+<button class="btn btn-primary w-100">
+Add Expense
+</button>
+
+</form>
+
+</div>
+</div>
+
+<!--Budget doughnut-->
+<div class="col-lg-4 col-md-12">
+
+    <div class="card shadow p-3 h-100">
+
+        <h6>Budget Overview</h6>
+
+        <select id="time-filter" class="form-select mb-3">
+            <option value="monthly">Monthly</option>
+            <option value="yearly">Yearly</option>
+        </select>
+
+    <canvas id="budgetChart"></canvas>
+
+    </div>
+
+
+</div>
+    <!-- SPENDING STATUS -->
+
+    <div class="col-lg-2">
+    
+        <div class="card shadow p-3 h-100">
+        
+            <h6>Spending Status</h6>
+            <p id="budget-message"></p>
+        
+        </div>
+    
+    </div>
+
+    <!-- MONTHLY TREND CHART -->
+
+    <div class="col-lg-2">
+    
+        <div class="card shadow p-3 h-100">
+        
+            <h6>Monthly Trend</h6>
+            <canvas id="monthlyChart"></canvas>
+        
+        </div>
+    
+    </div>
+
+
+</div>
+
+<!-- ROW 2 : CHARTS -->
+
+<div class="row g-4 mt-1">
+
+<div class="col-lg-6">
+
+<div class="card shadow p-3">
+
+<h6>Expense Distribution</h6>
+
+<canvas id="categoryChart"></canvas>
+
+</div>
+
+</div>
+
+
+<div class="col-lg-6">
+
+<div class="card shadow p-3">
+
+<h6>Daily Spending Trend</h6>
+
+<canvas id="dailyChart"></canvas>
+
+</div>
+
+</div>
+
+</div>
+
+
+<!-- ROW 3 : TABLE -->
+
+<div class="row mt-4">
+
+    <div class="col-12">
+
+        <div class="card shadow p-3">
+
+        <h5>Recent Expenses</h5>
+
+            <div class="table-responsive">
+            
+                <table class="table table-hover">
+                
+                    <thead>
+                        <tr>
+                        <th>Name</th>
+                        <th>Amount</th>
+                            <th>Category</th>
+                            <th>Date</th>
+                        </tr>
+                    </thead>
+                
+                    <tbody id="expense-list"></tbody>
+                
+                </table>
+            
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+</div>
+</div>
+
+<script src="/js/app.js"></script>
+
+</body>
+</html>

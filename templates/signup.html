@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flow - Sign Up</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/css/auth.css">
+</head>
+<body>
+    <div class="auth-shell">
+        <section class="auth-panel primary">
+            <div>
+                <div class="auth-brand">
+                    <div class="auth-logo"><i class="fas fa-chart-pie"></i></div>
+                    Flow
+                </div>
+                <span class="auth-kicker"><i class="fas fa-sparkles"></i> New Account</span>
+                <h1>Create a finance setup that feels modern from day one.</h1>
+                <p>Start with a clean account flow, then move into a dashboard, reports, and analytics system designed around one consistent palette.</p>
+            </div>
+            <div class="auth-points">
+                <div class="auth-point"><i class="fas fa-layer-group"></i><span>Consistent cards, forms, menus, and pages</span></div>
+                <div class="auth-point"><i class="fas fa-repeat"></i><span>Recurring expense support built into the main workflow</span></div>
+                <div class="auth-point"><i class="fas fa-file-lines"></i><span>Reports and transaction management ready after signup</span></div>
+            </div>
+        </section>
+
+        <section class="auth-panel auth-card">
+            <h2>Create Account</h2>
+            <p class="auth-subtitle">Set up your profile and jump straight into a calmer budgeting workflow.</p>
+
+            <form id="signupForm">
+                <div class="form-group">
+                    <label for="fullName">Full Name</label>
+                    <div class="input-wrapper">
+                        <i class="fas fa-user"></i>
+                        <input id="fullName" type="text" name="fullname" placeholder="Enter your full name" required>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="username">Username</label>
+                    <div class="input-wrapper">
+                        <i class="fas fa-at"></i>
+                        <input id="username" type="text" name="username" placeholder="Choose a username" required>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="email">Email Address</label>
+                    <div class="input-wrapper">
+                        <i class="fas fa-envelope"></i>
+                        <input id="email" type="email" name="email" placeholder="Enter your email" required>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="phone">Phone Number</label>
+                    <div class="input-wrapper">
+                        <i class="fas fa-phone"></i>
+                        <input id="phone" type="tel" name="phone" placeholder="Enter your phone number">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <div class="input-wrapper">
+                        <i class="fas fa-lock"></i>
+                        <input id="password" type="password" name="password" placeholder="Create a password" required>
+                    </div>
+                </div>
+
+                <button type="submit" class="auth-btn">
+                    <i class="fas fa-user-plus"></i>
+                    Create Account
+                </button>
+            </form>
+
+            <div class="auth-divider"></div>
+            <p class="auth-meta">Already registered? <a href="login.html">Sign in</a></p>
+            <p class="back-link"><a href="../index.html"><i class="fas fa-arrow-left"></i> Back to Home</a></p>
+        </section>
+    </div>
+
+    <script>
+        document.getElementById('signupForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            localStorage.setItem('fincastLoggedIn', 'true');
+            localStorage.setItem('fincastUser', document.querySelector('input[name="username"]').value);
+            localStorage.setItem('fincastFullName', document.querySelector('input[name="fullname"]').value);
+            localStorage.setItem('fincastEmail', document.querySelector('input[name="email"]').value);
+            localStorage.setItem('fincastPhone', document.querySelector('input[name="phone"]').value);
+            window.location.href = 'dashboard.html';
+        });
+    </script>
+</body>
+</html>

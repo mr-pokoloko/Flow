@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flow - Settings</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+    <button class="sidebar-toggle" onclick="toggleSidebar()" aria-label="Toggle sidebar"><i class="fas fa-bars"></i></button>
+    <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+    <aside class="sidebar">
+        <div class="sidebar-logo">
+            <div class="logo-icon"><i class="fas fa-chart-pie"></i></div>
+            <h3 class="logo-text">Flow</h3>
+        </div>
+        <div class="profile-section">
+            <div class="profile-photo"><i class="fas fa-user"></i></div>
+            <div class="username" id="profileName">John Doe</div>
+            <div class="user-role">Settings</div>
+        </div>
+        <nav class="sidebar-nav">
+            <ul class="menu">
+                <li><a href="dashboard.html"><i class="fas fa-th-large"></i><span>Dashboard</span></a></li>
+                <li><a href="Analytics.html"><i class="fas fa-chart-line"></i><span>Analytics</span></a></li>
+                <li><a href="Transactions.html"><i class="fas fa-wallet"></i><span>Transactions</span></a></li>
+                <li><a href="Reports.html"><i class="fas fa-file-alt"></i><span>Reports</span></a></li>
+                <li class="active"><a href="Settings.html"><i class="fas fa-cog"></i><span>Settings</span></a></li>
+            </ul>
+        </nav>
+        <a href="../index.html" class="signout-btn"><i class="fas fa-sign-out-alt"></i><span>Sign Out</span></a>
+    </aside>
+
+    <div class="main-content">
+        <div class="container-fluid page-shell">
+            <div class="page-header">
+                <h1 class="page-title"><span class="title-icon"><i class="fas fa-cog"></i></span>Settings</h1>
+                <p class="page-subtitle">Manage profile details, budget preferences, notifications, and account protection with the same clean design language as the rest of the product.</p>
+            </div>
+
+            <div class="row g-4">
+                <div class="col-lg-6">
+                    <div class="card shadow p-4">
+                        <h5><i class="section-icon fas fa-user-circle"></i>Profile Information</h5>
+                        <form id="profileForm">
+                            <div class="mb-3">
+                                <label for="profileFullName">Full Name</label>
+                                <input type="text" id="profileFullName" name="fullname" class="form-control" value="John Doe">
+                            </div>
+                            <div class="mb-3">
+                                <label for="profileUsername">Username</label>
+                                <input type="text" id="profileUsername" name="username" class="form-control" value="johndoe" readonly>
+                            </div>
+                            <div class="mb-3">
+                                <label for="profileEmail">Email Address</label>
+                                <input type="email" id="profileEmail" name="email" class="form-control" value="john.doe@example.com">
+                            </div>
+                            <div class="mb-3">
+                                <label for="profilePhone">Phone Number</label>
+                                <input type="tel" id="profilePhone" name="phone" class="form-control" value="+91 98765 43210">
+                            </div>
+                            <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Save Changes</button>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="col-lg-6">
+                    <div class="card shadow p-4">
+                        <h5><i class="section-icon fas fa-wallet"></i>Budget Settings</h5>
+                        <form id="budgetForm">
+                            <div class="mb-3">
+                                <label for="monthlyBudget">Monthly Budget</label>
+                                <div class="input-group">
+                                    <span class="input-group-text">&#8377;</span>
+                                    <input type="number" id="monthlyBudget" name="budget" class="form-control" value="5000">
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="budgetAlertThreshold">Budget Alert Threshold</label>
+                                <select id="budgetAlertThreshold" class="form-select">
+                                    <option>50% of budget</option>
+                                    <option selected>80% of budget</option>
+                                    <option>90% of budget</option>
+                                    <option>100% of budget</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label for="currencySelect">Currency</label>
+                                <select id="currencySelect" class="form-select">
+                                    <option selected>Indian Rupee (&#8377;)</option>
+                                    <option>US Dollar ($)</option>
+                                    <option>Euro (&#8364;)</option>
+                                    <option>British Pound (&pound;)</option>
+                                </select>
+                            </div>
+                            <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Save Budget</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row g-4 mt-1">
+                <div class="col-lg-6">
+                    <div class="card shadow p-4">
+                        <h5><i class="section-icon fas fa-bell"></i>Notifications</h5>
+                        <div class="switch-row">
+                            <input class="form-check-input" id="budgetAlerts" type="checkbox" checked>
+                            <label for="budgetAlerts" class="mb-0">Budget Alerts<br><span class="muted-copy">Get notified when approaching your budget limit.</span></label>
+                        </div>
+                        <div class="switch-row">
+                            <input class="form-check-input" id="weeklySummary" type="checkbox" checked>
+                            <label for="weeklySummary" class="mb-0">Weekly Summary<br><span class="muted-copy">Receive a quick weekly breakdown of spending activity.</span></label>
+                        </div>
+                        <div class="switch-row">
+                            <input class="form-check-input" id="largeExpenseAlerts" type="checkbox">
+                            <label for="largeExpenseAlerts" class="mb-0">Large Expense Alerts<br><span class="muted-copy">Flag transactions above your chosen threshold.</span></label>
+                        </div>
+                        <div class="switch-row">
+                            <input class="form-check-input" id="billReminders" type="checkbox" checked>
+                            <label for="billReminders" class="mb-0">Bill Reminders<br><span class="muted-copy">Stay ahead of recurring due dates automatically.</span></label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-lg-6">
+                    <div class="card shadow p-4">
+                        <h5><i class="section-icon fas fa-shield-alt"></i>Security</h5>
+                        <form id="securityForm">
+                            <div class="mb-3">
+                                <label for="currentPassword">Current Password</label>
+                                <input id="currentPassword" type="password" class="form-control" placeholder="Enter current password">
+                            </div>
+                            <div class="mb-3">
+                                <label for="newPassword">New Password</label>
+                                <input id="newPassword" type="password" class="form-control" placeholder="Enter new password">
+                            </div>
+                            <div class="mb-3">
+                                <label for="confirmPassword">Confirm New Password</label>
+                                <input id="confirmPassword" type="password" class="form-control" placeholder="Confirm new password">
+                            </div>
+                            <div class="switch-row pt-0">
+                                <input class="form-check-input" id="twoFactor" type="checkbox" checked>
+                                <label for="twoFactor" class="mb-0">Two-Factor Authentication<br><span class="muted-copy">Add an extra layer of account protection.</span></label>
+                            </div>
+                            <button type="button" class="btn btn-primary"><i class="fas fa-key"></i> Update Password</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row mt-4">
+                <div class="col-12">
+                    <div class="card danger-card shadow p-4">
+                        <h5 class="danger-text"><i class="section-icon fas fa-triangle-exclamation"></i>Danger Zone</h5>
+                        <p class="muted-copy mb-3">These actions are irreversible. Review carefully before continuing.</p>
+                        <div class="d-flex gap-3 flex-wrap">
+                            <button class="btn btn-danger-soft" onclick="clearAllData()"><i class="fas fa-trash"></i> Clear All Data</button>
+                            <button class="btn btn-danger-soft"><i class="fas fa-user-slash"></i> Delete Account</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/data.js"></script>
+    <script>
+        function toggleSidebar() {
+            document.querySelector('.sidebar').classList.toggle('active');
+            document.querySelector('.sidebar-overlay').classList.toggle('active');
+        }
+
+        function clearAllData() {
+            if (!confirm('This will permanently delete all your expenses. Continue?')) return;
+            localStorage.setItem('fincast_expenses', JSON.stringify([]));
+            localStorage.removeItem('fincast_cached_expenses');
+            localStorage.removeItem('fincastMonthlyBudget');
+            alert('All data cleared!');
+            window.location.reload();
+        }
+
+        function saveProfile(e) {
+            e.preventDefault();
+            const fullName = document.getElementById('profileFullName').value;
+            const username = document.getElementById('profileUsername').value;
+            const email = document.getElementById('profileEmail').value;
+            const phone = document.getElementById('profilePhone').value;
+
+            localStorage.setItem('fincastFullName', fullName);
+            localStorage.setItem('fincastUser', username);
+            localStorage.setItem('fincastEmail', email);
+            localStorage.setItem('fincastPhone', phone);
+
+            if (window.FinCastData) {
+                FinCastData.updateUserData({ username, email, phone });
+            }
+
+            document.getElementById('profileName').textContent = fullName || username;
+            alert('Profile updated successfully!');
+        }
+
+        function saveBudget(e) {
+            e.preventDefault();
+            const budgetValue = document.getElementById('monthlyBudget').value;
+            localStorage.setItem('fincastMonthlyBudget', budgetValue);
+
+            if (window.FinCastData) {
+                FinCastData.updateBudget({ monthly: Number(budgetValue) });
+            }
+
+            const btn = e.currentTarget.querySelector('button[type="submit"]');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-check"></i> Budget Saved!';
+            btn.classList.add('btn-success');
+
+            setTimeout(() => {
+                btn.innerHTML = originalText;
+                btn.classList.remove('btn-success');
+            }, 1800);
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const fullName = localStorage.getItem('fincastFullName');
+            const username = localStorage.getItem('fincastUser');
+            const email = localStorage.getItem('fincastEmail');
+            const phone = localStorage.getItem('fincastPhone');
+            const savedBudget = localStorage.getItem('fincastMonthlyBudget');
+
+            if (fullName) {
+                document.getElementById('profileName').textContent = fullName;
+                document.getElementById('profileFullName').value = fullName;
+            } else if (username) {
+                document.getElementById('profileName').textContent = username;
+            }
+
+            if (username) document.getElementById('profileUsername').value = username;
+            if (email) document.getElementById('profileEmail').value = email;
+            if (phone) document.getElementById('profilePhone').value = phone;
+            if (savedBudget) document.getElementById('monthlyBudget').value = savedBudget;
+
+            if (window.FinCastData) {
+                const settings = FinCastData.getSettings ? FinCastData.getSettings() : null;
+                if (settings) {
+                    document.getElementById('budgetAlerts').checked = settings.budgetAlerts;
+                    document.getElementById('weeklySummary').checked = settings.weeklySummary;
+                    document.getElementById('largeExpenseAlerts').checked = settings.largeExpenseAlerts;
+                    document.getElementById('billReminders').checked = settings.billReminders;
+                }
+            }
+
+            document.getElementById('profileForm').addEventListener('submit', saveProfile);
+            document.getElementById('budgetForm').addEventListener('submit', saveBudget);
+        });
+    </script>
+</body>
+</html>

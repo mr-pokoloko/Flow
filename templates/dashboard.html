@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flow Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+    <button class="sidebar-toggle" onclick="toggleSidebar()" aria-label="Toggle sidebar">
+        <i class="fas fa-bars"></i>
+    </button>
+    <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+    <aside class="sidebar">
+        <div class="sidebar-logo">
+            <div class="logo-icon"><i class="fas fa-chart-pie"></i></div>
+            <h3 class="logo-text">Flow</h3>
+        </div>
+
+        <div class="profile-section">
+            <div class="profile-photo"><i class="fas fa-user"></i></div>
+            <div class="username" id="profileName">John Doe</div>
+            <div class="user-role">Dashboard</div>
+        </div>
+
+        <nav class="sidebar-nav">
+            <ul class="menu">
+                <li class="active"><a href="dashboard.html"><i class="fas fa-th-large"></i><span>Dashboard</span></a></li>
+                <li><a href="Analytics.html"><i class="fas fa-chart-line"></i><span>Analytics</span></a></li>
+                <li><a href="Transactions.html"><i class="fas fa-wallet"></i><span>Transactions</span></a></li>
+                <li><a href="Reports.html"><i class="fas fa-file-alt"></i><span>Reports</span></a></li>
+                <li><a href="Settings.html"><i class="fas fa-cog"></i><span>Settings</span></a></li>
+            </ul>
+        </nav>
+
+        <a href="../index.html" class="signout-btn">
+            <i class="fas fa-sign-out-alt"></i>
+            <span>Sign Out</span>
+        </a>
+    </aside>
+
+    <div class="main-content">
+        <div class="notification-icon-black" onclick="toggleNotifications()">
+            <i class="fas fa-bell"></i>
+            <span class="notification-dot" id="notificationDot" style="display: none;"></span>
+        </div>
+
+        <div class="container-fluid page-shell">
+            <div class="page-header">
+                <h1 class="page-title">
+                    <span class="title-icon"><i class="fas fa-th-large"></i></span>
+                    Dashboard
+                </h1>
+                <p class="page-subtitle">Track expenses, review budgets, and keep recurring payments under control with one consistent workspace.</p>
+            </div>
+
+            <div class="card summary-card mb-4">
+                <div class="summary-split">
+                    <div class="summary-pane" id="total-spent">
+                        <h6><i class="fas fa-chart-line"></i> Total Spending</h6>
+                        <h2 id="total-expense">&#8377;0</h2>
+                    </div>
+                    <div class="summary-pane" id="budget-left">
+                        <h6><i class="fas fa-wallet"></i> Budget Left</h6>
+                        <h2 id="budget-balance" class="budget-balance-positive">&#8377;5000</h2>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row g-4">
+                <div class="col-lg-4 col-md-6">
+                    <div class="card shadow p-4 h-100">
+                        <h5><i class="section-icon fas fa-plus-circle"></i>Add Expense</h5>
+                        <form id="expense-form">
+                            <input type="text" id="expense-name" class="form-control mb-3" placeholder="Expense name" required>
+                            <input type="number" id="expense-amount" class="form-control mb-3" placeholder="Amount" required>
+                            <select id="expense-category" class="form-select mb-3">
+                                <option>Food</option>
+                                <option>Transport</option>
+                                <option>Shopping</option>
+                                <option>Bills</option>
+                            </select>
+                            <input type="date" id="expense-date" class="form-control mb-3">
+                            <button class="btn btn-primary w-100"><i class="fas fa-plus"></i> Add Expense</button>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="col-lg-4 col-md-12">
+                    <div class="card chart-card shadow p-4 h-100">
+                        <h5><i class="section-icon fas fa-chart-pie"></i>Monthly Budget Overview</h5>
+                        <div class="chart-frame">
+                            <canvas id="budgetChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-lg-4 col-md-6">
+                    <div class="card shadow p-4 h-100">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h5><i class="section-icon fas fa-sync-alt"></i>Recurring Expenses</h5>
+                            <button onclick="toggleRecurringForm()" id="addRecurringBtn" class="btn btn-sm btn-primary" type="button">
+                                <i class="fas fa-plus"></i> Add New
+                            </button>
+                        </div>
+
+                        <div id="recurring-form-wrapper" style="display: none; margin-bottom: 16px;">
+                            <div class="soft-panel">
+                                <input type="text" id="r_title" class="form-control mb-2" placeholder="Expense name">
+                                <input type="number" id="r_amount" class="form-control mb-2" placeholder="Amount">
+                                <select id="r_category" class="form-select mb-2">
+                                    <option>Bills</option>
+                                    <option>Food</option>
+                                    <option>Transport</option>
+                                    <option>Shopping</option>
+                                </select>
+                                <select id="r_frequency" class="form-select mb-2">
+                                    <option value="monthly">Monthly</option>
+                                    <option value="weekly">Weekly</option>
+                                </select>
+                                <input type="date" id="r_due" class="form-control mb-3">
+                                <div class="d-flex gap-2">
+                                    <button type="button" class="btn btn-primary flex-grow-1" onclick="addRecurring()"><i class="fas fa-check"></i> Save</button>
+                                    <button type="button" class="btn btn-outline-secondary" onclick="toggleRecurringForm()"><i class="fas fa-times"></i></button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="recurring-list" style="max-height: 350px; overflow-y: auto;">
+                            <div class="empty-state">
+                                <div class="empty-state-icon"><i class="fas fa-sync-alt"></i></div>
+                                <p class="mb-0">No recurring expenses yet</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row g-4 mt-1">
+                <div class="col-lg-6">
+                    <div class="card chart-card shadow p-4">
+                        <h5><i class="section-icon fas fa-chart-bar"></i>Expense Distribution</h5>
+                        <div class="chart-frame">
+                            <canvas id="categoryChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-lg-4">
+                    <div class="card shadow p-4 mb-3" id="budget-status">
+                        <h6><i class="section-icon fas fa-info-circle"></i>Spending Status</h6>
+                        <p id="budget-message" class="muted-copy mb-0 mt-2"></p>
+                    </div>
+                    <div class="card chart-card shadow p-4">
+                        <h6><i class="section-icon fas fa-chart-line"></i>Monthly Trend</h6>
+                        <div class="chart-frame">
+                            <canvas id="monthlyChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row mt-4">
+                <div class="col-12">
+                    <div class="card shadow p-4">
+                        <h5><i class="section-icon fas fa-list"></i>Recent Expenses</h5>
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Category</th>
+                                        <th>Date</th>
+                                        <th>Amount</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="expense-list"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="notification-popup" id="notificationPopup">
+        <div class="notification-popup-content">
+            <div class="notification-popup-header">
+                <h6 class="mb-0"><i class="fas fa-bell"></i> Notifications</h6>
+                <button class="notification-popup-close" onclick="toggleNotifications()"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="notification-popup-body">
+                <div class="notification-popup-item">
+                    <div class="notification-popup-icon"><i class="fas fa-exclamation-triangle"></i></div>
+                    <div class="notification-popup-text">
+                        <h6>Budget watch</h6>
+                        <p>Your budget is getting close to the limit this month.</p>
+                        <small>Review your biggest categories to stay in control.</small>
+                    </div>
+                </div>
+                <div class="notification-popup-item">
+                    <div class="notification-popup-icon"><i class="fas fa-check-circle"></i></div>
+                    <div class="notification-popup-text">
+                        <h6>Recurring reminders active</h6>
+                        <p>Your scheduled expenses are ready to keep future months predictable.</p>
+                        <small>Update them anytime from the dashboard.</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/data.js"></script>
+    <script src="/js/app.js"></script>
+    <script>
+        function toggleSidebar() {
+            document.querySelector('.sidebar').classList.toggle('active');
+            document.querySelector('.sidebar-overlay').classList.toggle('active');
+        }
+
+        function toggleNotifications() {
+            document.getElementById('notificationPopup').classList.toggle('active');
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const fullName = localStorage.getItem('fincastFullName');
+            const username = localStorage.getItem('fincastUser');
+            if (fullName) {
+                document.getElementById('profileName').textContent = fullName;
+            } else if (username) {
+                document.getElementById('profileName').textContent = username;
+            }
+        });
+    </script>
+</body>
+</html>

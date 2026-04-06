@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flow - Transactions</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+    <button class="sidebar-toggle" onclick="toggleSidebar()" aria-label="Toggle sidebar"><i class="fas fa-bars"></i></button>
+    <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+    <aside class="sidebar">
+        <div class="sidebar-logo">
+            <div class="logo-icon"><i class="fas fa-chart-pie"></i></div>
+            <h3 class="logo-text">Flow</h3>
+        </div>
+        <div class="profile-section">
+            <div class="profile-photo"><i class="fas fa-user"></i></div>
+            <div class="username" id="profileName">John Doe</div>
+            <div class="user-role">Transactions</div>
+        </div>
+        <nav class="sidebar-nav">
+            <ul class="menu">
+                <li><a href="dashboard.html"><i class="fas fa-th-large"></i><span>Dashboard</span></a></li>
+                <li><a href="Analytics.html"><i class="fas fa-chart-line"></i><span>Analytics</span></a></li>
+                <li class="active"><a href="Transactions.html"><i class="fas fa-wallet"></i><span>Transactions</span></a></li>
+                <li><a href="Reports.html"><i class="fas fa-file-alt"></i><span>Reports</span></a></li>
+                <li><a href="Settings.html"><i class="fas fa-cog"></i><span>Settings</span></a></li>
+            </ul>
+        </nav>
+        <a href="../index.html" class="signout-btn"><i class="fas fa-sign-out-alt"></i><span>Sign Out</span></a>
+    </aside>
+
+    <div class="main-content">
+        <div class="container-fluid page-shell">
+            <div class="page-header">
+                <h1 class="page-title"><span class="title-icon"><i class="fas fa-wallet"></i></span>All Transactions</h1>
+                <p class="page-subtitle">Search, filter, and manage every transaction from a single clean table built with the same palette as the rest of the app.</p>
+            </div>
+
+            <div class="card shadow p-3 mb-4">
+                <div class="row align-items-center g-3">
+                    <div class="col-md-4">
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="fas fa-search"></i></span>
+                            <input type="text" class="form-control" placeholder="Search transactions...">
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <select class="form-select">
+                            <option>All Categories</option>
+                            <option>Food</option>
+                            <option>Transport</option>
+                            <option>Shopping</option>
+                            <option>Bills</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <select class="form-select">
+                            <option>All Time</option>
+                            <option>Today</option>
+                            <option>This Week</option>
+                            <option>This Month</option>
+                            <option>This Year</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2 text-end">
+                        <button class="btn btn-primary w-100"><i class="fas fa-download"></i> Export</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card shadow">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>Transaction</th>
+                                <th>Category</th>
+                                <th>Date</th>
+                                <th class="text-end">Amount</th>
+                                <th class="text-center">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="transactionTableBody">
+                            <tr>
+                                <td colspan="5">
+                                    <div class="empty-state">
+                                        <div class="empty-state-icon"><i class="fas fa-receipt"></i></div>
+                                        <p class="mb-0">No transactions loaded yet</p>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="card-footer">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="muted-copy" id="transactionCount">Showing 0 transactions</span>
+                        <nav aria-label="Page navigation">
+                            <ul class="pagination mb-0">
+                                <li class="page-item disabled"><a class="page-link" href="#"><i class="fas fa-chevron-left"></i></a></li>
+                                <li class="page-item active"><a class="page-link" href="#">1</a></li>
+                                <li class="page-item"><a class="page-link" href="#">2</a></li>
+                                <li class="page-item"><a class="page-link" href="#">3</a></li>
+                                <li class="page-item"><a class="page-link" href="#"><i class="fas fa-chevron-right"></i></a></li>
+                            </ul>
+                        </nav>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/data.js"></script>
+    <script>
+        function toggleSidebar() {
+            document.querySelector('.sidebar').classList.toggle('active');
+            document.querySelector('.sidebar-overlay').classList.toggle('active');
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const fullName = localStorage.getItem('fincastFullName');
+            const username = localStorage.getItem('fincastUser');
+            if (fullName) {
+                document.getElementById('profileName').textContent = fullName;
+            } else if (username) {
+                document.getElementById('profileName').textContent = username;
+            }
+
+            if (window.FinCastData) {
+                loadTransactions();
+            }
+        });
+
+        function loadTransactions() {
+            const expenses = FinCastData.getExpenses();
+            const tbody = document.getElementById('transactionTableBody');
+            tbody.innerHTML = '';
+
+            const categoryIcons = {
+                Food: 'fa-utensils',
+                Transport: 'fa-bus',
+                Shopping: 'fa-bag-shopping',
+                Bills: 'fa-bolt',
+                Entertainment: 'fa-film',
+                Health: 'fa-heart-pulse'
+            };
+
+            if (!expenses.length) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="5">
+                            <div class="empty-state">
+                                <div class="empty-state-icon"><i class="fas fa-receipt"></i></div>
+                                <p class="mb-0">No transactions available yet</p>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+                document.getElementById('transactionCount').textContent = 'Showing 0 transactions';
+                return;
+            }
+
+            expenses.forEach(expense => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>
+                        <div class="tx-summary">
+                            <div class="tx-icon"><i class="fas ${categoryIcons[expense.category] || 'fa-tag'}"></i></div>
+                            <div>
+                                <div class="tx-title">${expense.name}</div>
+                                <div class="tx-subtitle">${expense.category}</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td><span class="category-badge">${expense.category}</span></td>
+                    <td class="muted-copy">${expense.date}</td>
+                    <td class="text-end"><strong class="amount-negative">-\u20B9${expense.amount}</strong></td>
+                    <td class="text-center">
+                        <button class="action-btn edit" onclick="editExpense(${expense.id})"><i class="fas fa-pen"></i></button>
+                        <button class="action-btn delete" onclick="deleteExpense(${expense.id})"><i class="fas fa-trash"></i></button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+
+            document.getElementById('transactionCount').textContent = `Showing 1-${expenses.length} of ${expenses.length} transactions`;
+        }
+
+        function deleteExpense(id) {
+            if (!confirm('Are you sure you want to delete this expense?')) return;
+            FinCastData.deleteExpense(id);
+            loadTransactions();
+        }
+
+        function editExpense(id) {
+            window.location.href = 'dashboard.html?edit=' + id;
+        }
+
+        window.addEventListener('fincast_data_change', function() {
+            loadTransactions();
+        });
+    </script>
+</body>
+</html>
