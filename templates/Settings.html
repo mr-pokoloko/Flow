@@ -49,6 +49,10 @@
                         <h5><i class="section-icon fas fa-user-circle"></i>Profile Information</h5>
                         <form id="profileForm">
                             <div class="mb-3">
+                                <label for="profileImageUpload">Profile Picture</label>
+                                <input type="file" id="profileImageUpload" class="form-control" accept="image/*">
+                            </div>
+                            <div class="mb-3">
                                 <label for="profileFullName">Full Name</label>
                                 <input type="text" id="profileFullName" name="fullname" class="form-control" value="John Doe">
                             </div>
@@ -198,6 +202,7 @@
 
             FinCastData.updateUserData({ fullName, email, phone });
             document.getElementById('profileName').textContent = FinCastData.getDisplayName();
+            FinCastData.renderProfilePhoto(document.querySelector('.profile-photo'));
             alert('Profile updated successfully!');
         }
 
@@ -284,6 +289,7 @@
             const settings = FinCastData.getSettings();
 
             document.getElementById('profileName').textContent = FinCastData.getDisplayName();
+            FinCastData.renderProfilePhoto(document.querySelector('.profile-photo'));
             document.getElementById('profileFullName').value = user.fullName || '';
             document.getElementById('profileUsername').value = user.username || '';
             document.getElementById('profileEmail').value = user.email || '';
@@ -303,6 +309,26 @@
             document.getElementById('twoFactor').checked = settings.twoFactor !== false;
         }
 
+        function handleProfileImageUpload(event) {
+            const file = event.target.files?.[0];
+            if (!file) return;
+
+            if (!file.type.startsWith('image/')) {
+                alert('Please choose a valid image file.');
+                event.target.value = '';
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = function(loadEvent) {
+                const result = String(loadEvent.target?.result || '');
+                if (!result) return;
+                FinCastData.updateUserData({ profileImage: result });
+                FinCastData.renderProfilePhoto(document.querySelector('.profile-photo'));
+            };
+            reader.readAsDataURL(file);
+        }
+
         document.addEventListener('DOMContentLoaded', function() {
             if (!window.FinCastData?.requireAuth()) return;
             populateSettingsPage();
@@ -312,9 +338,17 @@
             document.getElementById('securityForm').addEventListener('submit', saveSecurity);
             document.getElementById('deleteAccountBtn').addEventListener('click', deleteAccount);
             document.getElementById('autoRenewBudget').addEventListener('change', syncRenewalFieldState);
+            document.getElementById('profileImageUpload').addEventListener('change', handleProfileImageUpload);
             ['budgetAlerts', 'weeklySummary', 'largeExpenseAlerts', 'billReminders', 'twoFactor'].forEach(id => {
                 document.getElementById(id).addEventListener('change', saveNotificationSettings);
             });
+        });
+
+        window.addEventListener('fincast_data_change', function(event) {
+            if (event.detail.event === 'user_updated') {
+                document.getElementById('profileName').textContent = FinCastData.getDisplayName();
+                FinCastData.renderProfilePhoto(document.querySelector('.profile-photo'));
+            }
         });
     </script>
 </body>

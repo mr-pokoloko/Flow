@@ -118,6 +118,7 @@
         document.addEventListener('DOMContentLoaded', function() {
             if (!window.FinCastData?.requireAuth()) return;
             document.getElementById('profileName').textContent = FinCastData.getDisplayName();
+            FinCastData.renderProfilePhoto(document.querySelector('.profile-photo'));
             bindReportActions();
             renderReports();
             updateYearlyChart();
@@ -233,6 +234,8 @@
 
         window.addEventListener('fincast_data_change', function(event) {
             if (['report_created', 'report_deleted', 'expense_added', 'expense_deleted', 'expense_updated', 'expenses_replaced'].includes(event.detail.event)) {
+                document.getElementById('profileName').textContent = FinCastData.getDisplayName();
+                FinCastData.renderProfilePhoto(document.querySelector('.profile-photo'));
                 renderReports();
                 updateYearlyChart();
             }

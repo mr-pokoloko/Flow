@@ -55,23 +55,29 @@
                     </div>
                 </div>
             </div>
-            <h1 class="page-title">
-                <span class="title-icon"><i class="fas fa-th-large"></i></span>
-                Dashboard
-            </h1>
+            <div class="dashboard-title-bar">
+                <h1 class="page-title">
+                    <span class="title-icon"><i class="fas fa-th-large"></i></span>
+                    Dashboard
+                </h1>
+                <button class="add-expense-trigger" onclick="toggleAddExpensePopup(true)" type="button">
+                    <span class="add-expense-trigger-icon"><i class="fas fa-plus"></i></span>
+                    <span>Add Expense</span>
+                </button>
+            </div>
 
-            <div class="card summary-card mb-4">
+            <div class="card summary-card mb-4" style="margin-top: 6px;">
                 <div class="summary-split">
                     <div class="summary-pane" id="total-spent">
                         <h6><i class="fas fa-chart-line"></i> Total Spending</h6>
                         <h2 id="total-expense">&#8377;0</h2>
                     </div>
                     <div class="summary-pane" id="budget-left">
-                        <h6><i class="fas fa-wallet"></i> Budget Left</h6>
+                        <h6><i class="fas fa-wallet"></i> Budget Details</h6>
                         <h2 id="budget-balance" class="budget-balance-positive">&#8377;5000</h2>
                     </div>
                     <div class="summary-pane" id="saved-this-month">
-                        <h6><i class="fas fa-piggy-bank"></i> Total Saved This Month</h6>
+                        <h6><i class="fas fa-piggy-bank"></i> Total Saved</h6>
                         <h2 id="saved-this-month-value">&#8377;0</h2>
                     </div>
                 </div>
@@ -105,7 +111,7 @@
             </div>
 
             <div class="row g-4 mt-1">
-                <div class="col-lg-7">
+                <div class="col-lg-12">
                     <div class="card shadow p-4 h-100">
                         <div class="d-flex justify-content-between align-items-center mb-3">
                             <h5><i class="section-icon fas fa-sync-alt"></i>Recurring Expenses</h5>
@@ -132,7 +138,6 @@
                                     <option value="monthly">Monthly</option>
                                     <option value="weekly">Weekly</option>
                                 </select>
-                                <input type="date" id="r_due" class="form-control mb-3">
                                 <div class="d-flex gap-2">
                                     <button type="button" class="btn btn-primary flex-grow-1" onclick="addRecurring()"><i class="fas fa-check"></i> Save</button>
                                     <button type="button" class="btn btn-outline-secondary" onclick="toggleRecurringForm()"><i class="fas fa-times"></i></button>
@@ -148,41 +153,10 @@
                         </div>
                     </div>
                 </div>
-
-                <div class="col-lg-5">
-                    <div class="card chart-card shadow p-4 h-100">
-                        <h5><i class="section-icon fas fa-chart-bar"></i>Expense Distribution</h5>
-                        <div class="chart-frame">
-                            <canvas id="categoryChart"></canvas>
-                        </div>
-                    </div>
-                </div>
             </div>
 
             <div class="row g-4 mt-1">
-                <div class="col-lg-5">
-                    <div class="card shadow p-4 h-100">
-                        <h5><i class="section-icon fas fa-plus-circle"></i>Add Expense</h5>
-                        <form id="expense-form">
-                            <input type="text" id="expense-name" class="form-control mb-3" placeholder="Expense name" required>
-                            <input type="number" id="expense-amount" class="form-control mb-3" placeholder="Amount" required>
-                            <select id="expense-category" class="form-select mb-3">
-                                <option>Food</option>
-                                <option>Transport</option>
-                                <option>Shopping</option>
-                                <option>Bills</option>
-                                <option>Entertainment</option>
-                                <option>Health</option>
-                                <option>Education</option>
-                                <option>Other</option>
-                            </select>
-                            <input type="date" id="expense-date" class="form-control mb-3">
-                            <button class="btn btn-primary w-100"><i class="fas fa-plus"></i> Add Expense</button>
-                        </form>
-                    </div>
-                </div>
-
-                <div class="col-lg-7">
+                <div class="col-lg-12">
                     <div class="card shadow p-4 h-100">
                         <h5><i class="section-icon fas fa-list"></i>Recent Expenses</h5>
                         <div class="table-responsive">
@@ -200,6 +174,36 @@
                         </div>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="notification-popup analytics-popup expense-popup" id="addExpensePopup">
+        <div class="notification-popup-content">
+            <div class="notification-popup-header">
+                <div>
+                    <h6 class="mb-1"><i class="fas fa-plus-circle"></i> Add Expense</h6>
+                    <small class="muted-copy">Log a new expense without leaving the dashboard.</small>
+                </div>
+                <button class="notification-popup-close" onclick="toggleAddExpensePopup(false)" type="button"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="notification-popup-body">
+                <form id="expense-form" class="expense-popup-form">
+                    <input type="text" id="expense-name" class="form-control mb-3" placeholder="Expense name" required>
+                    <input type="number" id="expense-amount" class="form-control mb-3" placeholder="Amount" required>
+                    <select id="expense-category" class="form-select mb-3">
+                        <option>Food</option>
+                        <option>Transport</option>
+                        <option>Shopping</option>
+                        <option>Bills</option>
+                        <option>Entertainment</option>
+                        <option>Health</option>
+                        <option>Education</option>
+                        <option>Other</option>
+                    </select>
+                    <input type="date" id="expense-date" class="form-control mb-3">
+                    <button class="btn btn-primary w-100" type="submit"><i class="fas fa-plus"></i> Add Expense</button>
+                </form>
             </div>
         </div>
     </div>
@@ -231,6 +235,85 @@
         </div>
     </div>
 
+    <div class="notification-popup" id="savingsPopup">
+        <div class="notification-popup-content">
+            <div class="notification-popup-header">
+                <div>
+                    <h6 class="mb-1"><i class="fas fa-piggy-bank"></i> Total Saved History</h6>
+                    <small class="muted-copy" id="savingsYearLabel"></small>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <button class="notification-popup-close" id="prevSavingsYearBtn" type="button"><i class="fas fa-chevron-left"></i></button>
+                    <button class="notification-popup-close" id="nextSavingsYearBtn" type="button"><i class="fas fa-chevron-right"></i></button>
+                    <button class="notification-popup-close" onclick="toggleSavingsPopup(false)" type="button"><i class="fas fa-times"></i></button>
+                </div>
+            </div>
+            <div class="notification-popup-body" id="savingsPopupBody"></div>
+        </div>
+    </div>
+
+    <div class="notification-popup analytics-popup expense-popup" id="budgetPopup">
+        <div class="notification-popup-content">
+            <div class="notification-popup-header">
+                <div>
+                    <h6 class="mb-1"><i class="fas fa-wallet"></i> Budget Details</h6>
+                    <small class="muted-copy">Your active monthly budget snapshot</small>
+                </div>
+                <button class="notification-popup-close" onclick="toggleBudgetPopup(false)" type="button"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="notification-popup-body budget-popup-body">
+                <div class="spending-popup-summary">
+                    <div class="spending-popup-stat">
+                        <span class="spending-popup-label">Total Set Budget</span>
+                        <strong id="budgetPopupTotal">&#8377;0</strong>
+                    </div>
+                    <div class="spending-popup-stat spending-popup-stat-right">
+                        <span class="spending-popup-label">Remaining Budget</span>
+                        <strong id="budgetPopupRemaining">&#8377;0</strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="notification-popup analytics-popup" id="spendingPopup">
+        <div class="notification-popup-content">
+            <div class="notification-popup-header">
+                <div>
+                    <h6 class="mb-1"><i class="fas fa-chart-pie"></i> Total Spending</h6>
+                    <small class="muted-copy">All-time spending and this month's total</small>
+                </div>
+                <button class="notification-popup-close" onclick="toggleSpendingPopup(false)" type="button"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="notification-popup-body spending-popup-body">
+                <div class="spending-popup-summary">
+                    <div class="spending-popup-stat">
+                        <span class="spending-popup-label">All Spending History</span>
+                        <strong id="spendingHistoryTotal">&#8377;0</strong>
+                    </div>
+                    <div class="spending-popup-stat spending-popup-stat-right">
+                        <span class="spending-popup-label">Current Month</span>
+                        <strong id="spendingCurrentMonthTotal">&#8377;0</strong>
+                    </div>
+                </div>
+                <div class="spending-chart-grid">
+                    <div class="card chart-card spending-popup-chart shadow p-4">
+                        <h5><i class="section-icon fas fa-chart-bar"></i>All Spending History</h5>
+                        <div class="chart-frame">
+                            <canvas id="categoryHistoryChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="card chart-card spending-popup-chart shadow p-4">
+                        <h5><i class="section-icon fas fa-calendar-alt"></i>Current Month</h5>
+                        <div class="chart-frame">
+                            <canvas id="categoryMonthChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="/js/data.js"></script>
     <script src="/js/app.js"></script>
     <script>
@@ -246,6 +329,7 @@
         document.addEventListener('DOMContentLoaded', function() {
             if (!window.FinCastData?.requireAuth()) return;
             document.getElementById('profileName').textContent = FinCastData.getDisplayName();
+            FinCastData.renderProfilePhoto(document.querySelector('.profile-photo'));
         });
     </script>
 </body>

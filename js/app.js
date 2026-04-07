@@ -24,6 +24,8 @@ const chartCategoryColors = [
     '#3a86ff'
 ];
 
+let savingsHistoryYear = new Date().getFullYear();
+
 document.addEventListener('DOMContentLoaded', async function() {
     if (!window.FinCastData?.requireAuth()) return;
 
@@ -36,6 +38,9 @@ function initializeDashboard() {
     monthlyBudget = Number(budget.monthly) || 5000;
     createCharts();
     bindExpenseForm();
+    bindSavingsHistory();
+    bindSpendingHistory();
+    bindBudgetHistory();
     renderProfileName();
     updateNotifications();
 }
@@ -45,15 +50,97 @@ function renderProfileName() {
     if (profileName && window.FinCastData) {
         profileName.textContent = FinCastData.getDisplayName();
     }
+    const profilePhoto = document.querySelector('.profile-photo');
+    if (profilePhoto && window.FinCastData) {
+        FinCastData.renderProfilePhoto(profilePhoto);
+    }
+}
+
+function bindSavingsHistory() {
+    const savedPane = document.getElementById('saved-this-month');
+    const prevButton = document.getElementById('prevSavingsYearBtn');
+    const nextButton = document.getElementById('nextSavingsYearBtn');
+    if (!savedPane || !window.FinCastData) return;
+
+    savingsHistoryYear = new Date().getFullYear();
+    savedPane.style.cursor = 'pointer';
+    savedPane.addEventListener('click', function() {
+        savingsHistoryYear = Math.min(
+            Math.max(savingsHistoryYear, FinCastData.getAccountStartYear()),
+            new Date().getFullYear()
+        );
+        renderSavingsHistoryPopup();
+        toggleSavingsPopup(true);
+    });
+
+    prevButton?.addEventListener('click', function() {
+        const minYear = FinCastData.getAccountStartYear();
+        if (savingsHistoryYear <= minYear) return;
+        savingsHistoryYear -= 1;
+        renderSavingsHistoryPopup();
+    });
+
+    nextButton?.addEventListener('click', function() {
+        const maxYear = new Date().getFullYear();
+        if (savingsHistoryYear >= maxYear) return;
+        savingsHistoryYear += 1;
+        renderSavingsHistoryPopup();
+    });
+}
+
+function bindSpendingHistory() {
+    const totalSpentPane = document.getElementById('total-spent');
+    if (!totalSpentPane || !window.FinCastData) return;
+
+    totalSpentPane.style.cursor = 'pointer';
+    totalSpentPane.addEventListener('click', function() {
+        renderSpendingPopup();
+        toggleSpendingPopup(true);
+    });
+}
+
+function bindBudgetHistory() {
+    const budgetPane = document.getElementById('budget-left');
+    if (!budgetPane || !window.FinCastData) return;
+
+    budgetPane.style.cursor = 'pointer';
+    budgetPane.addEventListener('click', function() {
+        renderBudgetPopup();
+        toggleBudgetPopup(true);
+    });
 }
 
 function createCharts() {
-    const categoryCanvas = document.getElementById('categoryChart');
+    const categoryHistoryCanvas = document.getElementById('categoryHistoryChart');
+    const categoryMonthCanvas = document.getElementById('categoryMonthChart');
     const budgetCanvas = document.getElementById('budgetChart');
     const monthlyCanvas = document.getElementById('monthlyChart');
 
-    if (categoryCanvas) {
-        window.categoryChart = new Chart(categoryCanvas, {
+    if (categoryHistoryCanvas) {
+        window.categoryHistoryChart = new Chart(categoryHistoryCanvas, {
+            type: 'pie',
+            data: {
+                labels: ['No expenses yet'],
+                datasets: [{
+                    data: [1],
+                    backgroundColor: [appPalette.lavender],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        labels: { color: appPalette.indigo }
+                    }
+                }
+            }
+        });
+    }
+
+    if (categoryMonthCanvas) {
+        window.categoryMonthChart = new Chart(categoryMonthCanvas, {
             type: 'pie',
             data: {
                 labels: ['No expenses yet'],
@@ -186,6 +273,7 @@ function bindExpenseForm() {
         updateBudgetStatus();
         updateNotifications();
         expenseForm.reset();
+        toggleAddExpensePopup(false);
     });
 }
 
@@ -249,9 +337,14 @@ async function loadDashboardData() {
                 amount: Number(item.amount) || 0,
                 category: item.category || 'Bills',
                 frequency: item.frequency || 'monthly',
-                next_due: item.next_due || new Date().toISOString().split('T')[0]
+                startDate: item.startDate || item.next_due || new Date().toISOString().split('T')[0],
+                createdAt: item.createdAt || new Date().toISOString()
             }));
         FinCastData.setRecurringExpenses(recurring);
+        expenses = FinCastData.getExpenses();
+        renderExpenseTable();
+        updateCharts();
+        updateBudgetStatus();
         await loadRecurringExpenses();
     }
 }
@@ -321,19 +414,28 @@ function addExpenseToTable(expense) {
 
 function updateCharts() {
     const categoryTotals = {};
+    const currentMonthTotals = {};
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+
     expenses.forEach(expense => {
         const category = expense.category || 'Other';
-        categoryTotals[category] = (categoryTotals[category] || 0) + Number(expense.amount || 0);
+        const amount = Number(expense.amount || 0);
+        categoryTotals[category] = (categoryTotals[category] || 0) + amount;
+
+        const expenseDate = new Date(expense.date);
+        if (
+            !Number.isNaN(expenseDate.getTime()) &&
+            expenseDate.getMonth() === currentMonth &&
+            expenseDate.getFullYear() === currentYear
+        ) {
+            currentMonthTotals[category] = (currentMonthTotals[category] || 0) + amount;
+        }
     });
 
-    if (window.categoryChart) {
-        const labels = Object.keys(categoryTotals);
-        const values = Object.values(categoryTotals);
-        window.categoryChart.data.labels = labels.length ? labels : ['No expenses yet'];
-        window.categoryChart.data.datasets[0].data = values.length ? values : [1];
-        window.categoryChart.data.datasets[0].backgroundColor = labels.length ? chartCategoryColors.slice(0, labels.length) : [appPalette.lavender];
-        window.categoryChart.update();
-    }
+    updateCategoryPieChart(window.categoryHistoryChart, categoryTotals);
+    updateCategoryPieChart(window.categoryMonthChart, currentMonthTotals);
 
     updateMonthlyChart();
 
@@ -359,6 +461,20 @@ function updateCharts() {
         window.budgetChart.data.datasets[0].data = [Math.max(cycleSpent, 0), Math.max(remaining, 0)];
         window.budgetChart.update();
     }
+
+    renderSpendingPopup();
+    renderBudgetPopup();
+}
+
+function updateCategoryPieChart(chart, totals) {
+    if (!chart) return;
+
+    const labels = Object.keys(totals);
+    const values = Object.values(totals);
+    chart.data.labels = labels.length ? labels : ['No expenses yet'];
+    chart.data.datasets[0].data = values.length ? values : [1];
+    chart.data.datasets[0].backgroundColor = labels.length ? chartCategoryColors.slice(0, labels.length) : [appPalette.lavender];
+    chart.update();
 }
 
 function updateBudgetStatus() {
@@ -388,6 +504,8 @@ function updateBudgetStatus() {
         window.budgetChart.data.datasets[0].data = [Math.max(cycleSpent, 0), Math.max(remaining, 0)];
         window.budgetChart.update();
     }
+
+    renderBudgetPopup();
 
     if (!budgetMsg) return;
 
@@ -446,7 +564,7 @@ async function loadRecurringExpenses() {
                 <div>
                     <h6 class="mb-1">${escapeHtml(item.title)}</h6>
                     <p class="mb-1 muted-copy">${formatCurrency(item.amount)} - ${escapeHtml(item.category)}</p>
-                    <small class="muted-copy"><i class="fas fa-clock"></i> ${escapeHtml(item.frequency)} - Due: ${formatDate(item.next_due)}</small>
+                    <small class="muted-copy"><i class="fas fa-clock"></i> ${item.frequency === 'weekly' ? 'Auto-applies every 7 days' : 'Auto-applies on each budget renewal'}</small>
                 </div>
                 <button class="btn btn-danger-soft btn-sm" onclick="deleteRecurring('${item.id}')">
                     <i class="fas fa-trash"></i>
@@ -491,14 +609,14 @@ async function addRecurring() {
     const amount = Number(document.getElementById('r_amount').value);
     const category = document.getElementById('r_category').value;
     const frequency = document.getElementById('r_frequency').value;
-    const next_due = document.getElementById('r_due').value;
 
-    if (!title || !amount || !next_due) {
+    if (!title || !amount) {
         alert('Please fill in all required fields.');
         return;
     }
 
-    const payload = { title, amount, category, frequency, next_due, user_id: 1 };
+    const startDate = new Date().toISOString().split('T')[0];
+    const payload = { title, amount, category, frequency, start_date: startDate, next_due: startDate, user_id: 1 };
     const backendRecurring = await postJson('/add_recurring', payload);
     FinCastData.addRecurringExpense({
         id: backendRecurring?.id,
@@ -506,7 +624,8 @@ async function addRecurring() {
         amount,
         category,
         frequency,
-        next_due
+        startDate,
+        createdAt: new Date().toISOString()
     });
     FinCastData.allowRemoteSync();
 
@@ -514,14 +633,17 @@ async function addRecurring() {
     document.getElementById('r_amount').value = '';
     document.getElementById('r_category').value = 'Bills';
     document.getElementById('r_frequency').value = 'monthly';
-    document.getElementById('r_due').value = '';
     toggleRecurringForm();
+    expenses = FinCastData.getExpenses();
+    renderExpenseTable();
+    updateCharts();
+    updateBudgetStatus();
     await loadRecurringExpenses();
     updateNotifications();
 }
 
 function updateNotifications() {
-    const popupBody = document.querySelector('.notification-popup-body');
+    const popupBody = document.querySelector('#notificationPopup .notification-popup-body');
     const dot = document.getElementById('notificationDot');
     if (!popupBody || !window.FinCastData) return;
 
@@ -541,6 +663,134 @@ function updateNotifications() {
         const hasAttention = notifications.some(item => item.tone === 'warning' || item.tone === 'info');
         dot.style.display = hasAttention ? 'block' : 'none';
     }
+}
+
+function toggleSpendingPopup(forceState) {
+    const popup = document.getElementById('spendingPopup');
+    if (!popup) return;
+
+    if (typeof forceState === 'boolean') {
+        popup.classList.toggle('active', forceState);
+    } else {
+        popup.classList.toggle('active');
+    }
+
+    if (popup.classList.contains('active')) {
+        window.requestAnimationFrame(function() {
+            if (window.categoryHistoryChart) {
+                window.categoryHistoryChart.resize();
+                window.categoryHistoryChart.update();
+            }
+            if (window.categoryMonthChart) {
+                window.categoryMonthChart.resize();
+                window.categoryMonthChart.update();
+            }
+        });
+    }
+}
+
+function renderSpendingPopup() {
+    if (!window.FinCastData) return;
+
+    const historyTotalEl = document.getElementById('spendingHistoryTotal');
+    const currentMonthEl = document.getElementById('spendingCurrentMonthTotal');
+    if (!historyTotalEl || !currentMonthEl) return;
+
+    const analytics = FinCastData.getAnalytics();
+    historyTotalEl.textContent = formatCurrency(analytics.totalSpent || 0);
+    currentMonthEl.textContent = formatCurrency(analytics.currentMonthSpent || 0);
+}
+
+function toggleBudgetPopup(forceState) {
+    const popup = document.getElementById('budgetPopup');
+    if (!popup) return;
+
+    if (typeof forceState === 'boolean') {
+        popup.classList.toggle('active', forceState);
+    } else {
+        popup.classList.toggle('active');
+    }
+}
+
+function renderBudgetPopup() {
+    if (!window.FinCastData) return;
+
+    const totalEl = document.getElementById('budgetPopupTotal');
+    const remainingEl = document.getElementById('budgetPopupRemaining');
+    if (!totalEl || !remainingEl) return;
+
+    const budget = FinCastData.getBudget();
+    const analytics = FinCastData.getAnalytics();
+    totalEl.textContent = formatCurrency(budget.monthly || 0);
+    remainingEl.textContent = formatCurrency(analytics.cycleBudgetLeft || 0);
+    remainingEl.classList.toggle('budget-balance-negative', (analytics.cycleBudgetLeft || 0) < 0);
+    remainingEl.classList.toggle('budget-balance-positive', (analytics.cycleBudgetLeft || 0) >= 0);
+}
+
+function toggleAddExpensePopup(forceState) {
+    const popup = document.getElementById('addExpensePopup');
+    if (!popup) return;
+
+    if (typeof forceState === 'boolean') {
+        popup.classList.toggle('active', forceState);
+    } else {
+        popup.classList.toggle('active');
+    }
+}
+
+function toggleSavingsPopup(forceState) {
+    const popup = document.getElementById('savingsPopup');
+    if (!popup) return;
+
+    if (typeof forceState === 'boolean') {
+        popup.classList.toggle('active', forceState);
+    } else {
+        popup.classList.toggle('active');
+    }
+}
+
+function renderSavingsHistoryPopup() {
+    if (!window.FinCastData) return;
+
+    const body = document.getElementById('savingsPopupBody');
+    const yearLabel = document.getElementById('savingsYearLabel');
+    const prevButton = document.getElementById('prevSavingsYearBtn');
+    const nextButton = document.getElementById('nextSavingsYearBtn');
+    if (!body || !yearLabel) return;
+
+    const minYear = FinCastData.getAccountStartYear();
+    const maxYear = new Date().getFullYear();
+    const history = FinCastData.getSavingsHistory(savingsHistoryYear);
+
+    yearLabel.textContent = String(history.year);
+    if (prevButton) prevButton.disabled = history.year <= minYear;
+    if (nextButton) nextButton.disabled = history.year >= maxYear;
+
+    body.innerHTML = history.months.map(item => {
+        if (!item.enabled) {
+            return `
+                <div class="notification-popup-item">
+                    <div class="notification-popup-icon"><i class="fas fa-calendar-minus"></i></div>
+                    <div class="notification-popup-text">
+                        <h6>${item.label}</h6>
+                        <p>No savings record for this month.</p>
+                        <small>Outside your account activity range.</small>
+                    </div>
+                </div>
+            `;
+        }
+
+        return `
+            <div class="notification-popup-item">
+                <div class="notification-popup-icon"><i class="fas fa-piggy-bank"></i></div>
+                <div class="notification-popup-text">
+                    <h6>${item.label}</h6>
+                    <p>Saved ${formatCurrency(item.saved || 0)}</p>
+                    <small>Spent ${formatCurrency(item.spent)} against a monthly budget of ${formatCurrency(history.budget)}</small>
+                </div>
+            </div>
+        `;
+    }).join('');
 }
 
 function formatCurrency(amount) {

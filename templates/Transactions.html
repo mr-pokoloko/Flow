@@ -145,6 +145,7 @@
         document.addEventListener('DOMContentLoaded', function() {
             if (!window.FinCastData?.requireAuth()) return;
             document.getElementById('profileName').textContent = FinCastData.getDisplayName();
+            FinCastData.renderProfilePhoto(document.querySelector('.profile-photo'));
             populateCategoryFilter();
             bindControls();
             loadTransactions();
@@ -367,6 +368,8 @@
         }
 
         window.addEventListener('fincast_data_change', function() {
+            document.getElementById('profileName').textContent = FinCastData.getDisplayName();
+            FinCastData.renderProfilePhoto(document.querySelector('.profile-photo'));
             populateCategoryFilter();
             loadTransactions();
         });

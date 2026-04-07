@@ -28,11 +28,13 @@ const DEFAULT_PROFILE = {
     username: 'johndoe',
     email: 'john.doe@example.com',
     phone: '+91 98765 43210',
-    role: 'Premium Member'
+    role: 'Premium Member',
+    profileImage: ''
 };
 
 const FinCastData = {
     listeners: {},
+    _applyingRecurring: false,
 
     init() {
         const state = this.getState();
@@ -96,6 +98,7 @@ const FinCastData = {
                 email: legacyEmail || legacyUserData.email || DEFAULT_PROFILE.email,
                 phone: legacyPhone || legacyUserData.phone || DEFAULT_PROFILE.phone,
                 role: legacyUserData.role || DEFAULT_PROFILE.role,
+                profileImage: localStorage.getItem('fincastProfileImage') || '',
                 passwordHash: null,
                 legacyAccount: true,
                 createdAt: new Date().toISOString()
@@ -148,6 +151,7 @@ const FinCastData = {
             email: DEFAULT_PROFILE.email,
             phone: DEFAULT_PROFILE.phone,
             role: DEFAULT_PROFILE.role,
+            profileImage: DEFAULT_PROFILE.profileImage,
             passwordHash: null,
             legacyAccount: true,
             createdAt: new Date().toISOString()
@@ -220,9 +224,30 @@ const FinCastData = {
         return this.getUserByUsername(this.getCurrentUsername());
     },
 
+    getAccountStartYear() {
+        const createdAt = this.getCurrentUser()?.createdAt;
+        const createdDate = createdAt ? new Date(createdAt) : new Date();
+        return Number.isNaN(createdDate.getTime()) ? new Date().getFullYear() : createdDate.getFullYear();
+    },
+
     getDisplayName() {
         const user = this.getCurrentUser();
         return user?.fullName || user?.username || DEFAULT_PROFILE.fullName;
+    },
+
+    getProfileImage() {
+        return this.getCurrentUser()?.profileImage || '';
+    },
+
+    renderProfilePhoto(target) {
+        if (!target) return;
+
+        const image = this.getProfileImage();
+        if (image) {
+            target.innerHTML = `<img src="${image}" alt="Profile picture" class="profile-photo-image">`;
+        } else {
+            target.innerHTML = '<i class="fas fa-user"></i>';
+        }
     },
 
     getCurrencySymbol() {
@@ -283,6 +308,140 @@ const FinCastData = {
         };
     },
 
+    normalizeDateKey(dateLike) {
+        const date = dateLike instanceof Date ? new Date(dateLike) : new Date(dateLike);
+        if (Number.isNaN(date.getTime())) {
+            const fallback = new Date();
+            fallback.setHours(0, 0, 0, 0);
+            return fallback.toISOString().split('T')[0];
+        }
+
+        date.setHours(0, 0, 0, 0);
+        return date.toISOString().split('T')[0];
+    },
+
+    parseSafeDate(dateLike, fallback = new Date()) {
+        const date = dateLike instanceof Date ? new Date(dateLike) : new Date(dateLike);
+        if (Number.isNaN(date.getTime())) {
+            const safeFallback = new Date(fallback);
+            safeFallback.setHours(0, 0, 0, 0);
+            return safeFallback;
+        }
+
+        date.setHours(0, 0, 0, 0);
+        return date;
+    },
+
+    normalizeRecurringItem(item) {
+        const todayKey = this.normalizeDateKey(new Date());
+        const startDate = item.startDate || item.createdAt || item.next_due || todayKey;
+
+        return {
+            id: item.id || this.makeId('rec'),
+            title: item.title || 'Recurring expense',
+            amount: Number(item.amount) || 0,
+            category: item.category || 'Bills',
+            frequency: item.frequency === 'weekly' ? 'weekly' : 'monthly',
+            startDate: this.normalizeDateKey(startDate),
+            createdAt: item.createdAt || new Date().toISOString()
+        };
+    },
+
+    buildRecurringExpenseSchedule(item, currentDate = new Date()) {
+        const schedule = [];
+        const recurring = this.normalizeRecurringItem(item);
+        const today = this.parseSafeDate(currentDate);
+        const startDate = this.parseSafeDate(recurring.startDate, today);
+
+        if (recurring.frequency === 'weekly') {
+            let occurrence = new Date(startDate);
+            while (occurrence <= today) {
+                schedule.push(new Date(occurrence));
+                occurrence.setDate(occurrence.getDate() + 7);
+            }
+            return schedule;
+        }
+
+        const startCycle = this.getBudgetCycleInfo(startDate);
+        let occurrence = startDate <= startCycle.start
+            ? new Date(startCycle.start)
+            : new Date(startCycle.nextStart);
+
+        while (occurrence <= today) {
+            schedule.push(new Date(occurrence));
+            occurrence = new Date(this.getBudgetCycleInfo(occurrence).nextStart);
+        }
+
+        return schedule;
+    },
+
+    getNextRecurringOccurrence(item, referenceDate = new Date()) {
+        const recurring = this.normalizeRecurringItem(item);
+        const current = this.parseSafeDate(referenceDate);
+
+        if (recurring.frequency === 'weekly') {
+            let occurrence = this.parseSafeDate(recurring.startDate, current);
+            while (occurrence < current) {
+                occurrence.setDate(occurrence.getDate() + 7);
+            }
+            return occurrence;
+        }
+
+        const cycle = this.getBudgetCycleInfo(current);
+        if (current.getTime() === cycle.start.getTime()) {
+            return new Date(cycle.nextStart);
+        }
+        return new Date(cycle.nextStart);
+    },
+
+    ensureRecurringExpenseHistory() {
+        if (this._applyingRecurring) return false;
+
+        const state = this.getState();
+        const username = this.getCurrentUsername();
+        const recurringItems = (state.recurringByUser[username] || []).map(item => this.normalizeRecurringItem(item));
+        const expenses = [...(state.expensesByUser[username] || [])];
+        if (!recurringItems.length) return false;
+
+        const existingScheduleKeys = new Set(
+            expenses
+                .filter(item => item?.sourceType === 'recurring' && item?.scheduleKey)
+                .map(item => item.scheduleKey)
+        );
+
+        const generatedExpenses = [];
+        recurringItems.forEach(item => {
+            this.buildRecurringExpenseSchedule(item).forEach(date => {
+                const dateKey = this.normalizeDateKey(date);
+                const scheduleKey = `${item.id}:${item.frequency}:${dateKey}`;
+                if (existingScheduleKeys.has(scheduleKey)) return;
+
+                existingScheduleKeys.add(scheduleKey);
+                generatedExpenses.push({
+                    id: this.makeId('exp'),
+                    name: `${item.title} (Recurring)`,
+                    amount: Number(item.amount) || 0,
+                    category: item.category || 'Bills',
+                    date: dateKey,
+                    recurringId: item.id,
+                    sourceType: 'recurring',
+                    scheduleKey
+                });
+            });
+        });
+
+        if (!generatedExpenses.length) return false;
+
+        state.recurringByUser[username] = recurringItems;
+        state.expensesByUser[username] = [...generatedExpenses, ...expenses].sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+
+        this._applyingRecurring = true;
+        this.setState(state);
+        this.syncLegacyStorage();
+        this._applyingRecurring = false;
+        return true;
+    },
+
     async registerUser(profile) {
         const state = this.getState();
         const username = (profile.username || '').trim();
@@ -308,6 +467,7 @@ const FinCastData = {
             email,
             phone: profile.phone || '',
             role: 'Premium Member',
+            profileImage: profile.profileImage || '',
             passwordHash,
             legacyAccount: false,
             createdAt: new Date().toISOString()
@@ -387,6 +547,7 @@ const FinCastData = {
     },
 
     getExpenses() {
+        this.ensureRecurringExpenseHistory();
         const username = this.getCurrentUsername();
         return [...(this.getState().expensesByUser[username] || [])].sort((a, b) => {
             return new Date(b.date || 0) - new Date(a.date || 0);
@@ -411,7 +572,10 @@ const FinCastData = {
             name: expense.name || expense.title || 'Untitled expense',
             amount: Number(expense.amount) || 0,
             category: expense.category || 'Other',
-            date: expense.date || new Date().toISOString().split('T')[0]
+            date: expense.date || new Date().toISOString().split('T')[0],
+            recurringId: expense.recurringId || null,
+            sourceType: expense.sourceType || 'manual',
+            scheduleKey: expense.scheduleKey || null
         };
 
         state.expensesByUser[username] = [nextExpense, ...(state.expensesByUser[username] || [])];
@@ -453,13 +617,17 @@ const FinCastData = {
 
     getRecurringExpenses() {
         const username = this.getCurrentUsername();
-        return [...(this.getState().recurringByUser[username] || [])].sort((a, b) => new Date(a.next_due || 0) - new Date(b.next_due || 0));
+        return [...(this.getState().recurringByUser[username] || [])]
+            .map(item => this.normalizeRecurringItem(item))
+            .sort((a, b) => a.title.localeCompare(b.title));
     },
 
     setRecurringExpenses(items) {
         const state = this.getState();
         const username = this.getCurrentUsername();
-        state.recurringByUser[username] = Array.isArray(items) ? items : [];
+        state.recurringByUser[username] = Array.isArray(items)
+            ? items.map(item => this.normalizeRecurringItem(item))
+            : [];
         this.setState(state);
         this.notifyDataChange('recurring_replaced', state.recurringByUser[username]);
         return state.recurringByUser[username];
@@ -468,16 +636,10 @@ const FinCastData = {
     addRecurringExpense(item) {
         const state = this.getState();
         const username = this.getCurrentUsername();
-        const recurring = {
-            id: item.id || this.makeId('rec'),
-            title: item.title || 'Recurring expense',
-            amount: Number(item.amount) || 0,
-            category: item.category || 'Bills',
-            frequency: item.frequency || 'monthly',
-            next_due: item.next_due || new Date().toISOString().split('T')[0]
-        };
+        const recurring = this.normalizeRecurringItem(item);
         state.recurringByUser[username] = [recurring, ...(state.recurringByUser[username] || [])];
         this.setState(state);
+        this.ensureRecurringExpenseHistory();
         this.notifyDataChange('recurring_added', recurring);
         return recurring;
     },
@@ -500,7 +662,8 @@ const FinCastData = {
             username: user.username,
             email: user.email || '',
             phone: user.phone || '',
-            role: user.role || DEFAULT_PROFILE.role
+            role: user.role || DEFAULT_PROFILE.role,
+            profileImage: user.profileImage || ''
         };
     },
 
@@ -514,7 +677,8 @@ const FinCastData = {
             ...state.users[index],
             fullName: data.fullName ?? state.users[index].fullName,
             email: data.email ?? state.users[index].email,
-            phone: data.phone ?? state.users[index].phone
+            phone: data.phone ?? state.users[index].phone,
+            profileImage: data.profileImage ?? state.users[index].profileImage
         };
 
         this.setState(state);
@@ -688,6 +852,47 @@ const FinCastData = {
         };
     },
 
+    getSavingsHistory(year = new Date().getFullYear()) {
+        const budget = this.getBudget();
+        const expenses = this.getExpenses();
+        const currentUser = this.getCurrentUser();
+        const createdDate = currentUser?.createdAt ? new Date(currentUser.createdAt) : new Date();
+        const safeCreatedDate = Number.isNaN(createdDate.getTime()) ? new Date() : createdDate;
+        const currentDate = new Date();
+        const monthlySpent = new Array(12).fill(0);
+
+        expenses.forEach(expense => {
+            const date = new Date(expense.date);
+            if (Number.isNaN(date.getTime())) return;
+            if (date.getFullYear() !== year) return;
+            monthlySpent[date.getMonth()] += Number(expense.amount || 0);
+        });
+
+        const months = monthlySpent.map((spent, monthIndex) => {
+            const beforeAccountStart = year < safeCreatedDate.getFullYear()
+                || (year === safeCreatedDate.getFullYear() && monthIndex < safeCreatedDate.getMonth());
+            const afterCurrentMonth = year > currentDate.getFullYear()
+                || (year === currentDate.getFullYear() && monthIndex > currentDate.getMonth());
+            const enabled = !beforeAccountStart && !afterCurrentMonth;
+            const saved = enabled ? Math.max(0, (budget.monthly || 0) - spent) : null;
+
+            return {
+                month: monthIndex,
+                label: this.monthName(monthIndex),
+                spent,
+                saved,
+                enabled
+            };
+        });
+
+        return {
+            year,
+            budget: budget.monthly || 0,
+            accountStartYear: safeCreatedDate.getFullYear(),
+            months
+        };
+    },
+
     createReport(type) {
         const reportType = type || 'monthly';
         const analytics = this.getAnalytics();
@@ -762,20 +967,25 @@ const FinCastData = {
         }
 
         if (settings.billReminders) {
-            const nextRecurring = recurring.find(item => {
-                const due = new Date(item.next_due);
-                const today = new Date();
-                const diffDays = Math.ceil((due - today) / (1000 * 60 * 60 * 24));
-                return diffDays >= 0 && diffDays <= 7;
-            });
+            const nextRecurring = recurring
+                .map(item => ({
+                    ...item,
+                    nextOccurrence: this.getNextRecurringOccurrence(item)
+                }))
+                .filter(item => {
+                    const today = this.parseSafeDate(new Date());
+                    const diffDays = Math.ceil((item.nextOccurrence - today) / (1000 * 60 * 60 * 24));
+                    return diffDays >= 0 && diffDays <= 7;
+                })
+                .sort((a, b) => a.nextOccurrence - b.nextOccurrence)[0];
 
             if (nextRecurring) {
                 notifications.push({
                     id: this.makeId('note'),
                     icon: 'fa-sync-alt',
-                    title: 'Recurring payment due soon',
-                    body: `${nextRecurring.title} is due on ${this.formatDate(nextRecurring.next_due)}.`,
-                    meta: `${this.formatCurrency(nextRecurring.amount)} - ${nextRecurring.category}`,
+                    title: 'Recurring charge coming up',
+                    body: `${nextRecurring.title} will be added automatically on ${this.formatDate(nextRecurring.nextOccurrence)}.`,
+                    meta: `${this.formatCurrency(nextRecurring.amount)} - ${nextRecurring.frequency === 'weekly' ? 'Weekly schedule' : 'Budget renewal schedule'}`,
                     tone: 'info'
                 });
             }
@@ -850,6 +1060,7 @@ const FinCastData = {
         localStorage.setItem('fincastFullName', user.fullName || user.username);
         localStorage.setItem('fincastEmail', user.email || '');
         localStorage.setItem('fincastPhone', user.phone || '');
+        localStorage.setItem('fincastProfileImage', user.profileImage || '');
         localStorage.setItem('fincastMonthlyBudget', String(budget.monthly || DEFAULT_BUDGET.monthly));
         localStorage.setItem('fincast_cached_expenses', JSON.stringify(expenses));
         localStorage.setItem(FINCAST_LEGACY_STORAGE_KEY, JSON.stringify(expenses));
@@ -870,6 +1081,7 @@ const FinCastData = {
             'fincastFullName',
             'fincastEmail',
             'fincastPhone',
+            'fincastProfileImage',
             'fincastMonthlyBudget',
             'fincast_cached_expenses',
             FINCAST_LEGACY_STORAGE_KEY,
@@ -999,9 +1211,12 @@ const FinCastData = {
             name: item.name || item.title || 'Untitled expense',
             amount: Number(item.amount) || 0,
             category: item.category || 'Other',
-            date: item.date || new Date().toISOString().split('T')[0]
+            date: item.date || new Date().toISOString().split('T')[0],
+            recurringId: item.recurringId || null,
+            sourceType: item.sourceType || 'manual',
+            scheduleKey: item.scheduleKey || null
         })).filter(item => {
-            const key = `${item.name}|${item.amount}|${item.category}|${item.date}`;
+            const key = item.scheduleKey || `${item.name}|${item.amount}|${item.category}|${item.date}`;
             if (seen.has(key)) return false;
             seen.add(key);
             return true;
