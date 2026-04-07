@@ -16,10 +16,6 @@
     <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
 
     <aside class="sidebar">
-        <div class="sidebar-logo">
-            <div class="logo-icon"><i class="fas fa-chart-pie"></i></div>
-            <h3 class="logo-text">Flow</h3>
-        </div>
         <div class="profile-section">
             <div class="profile-photo"><i class="fas fa-user"></i></div>
             <div class="username" id="profileName">John Doe</div>
@@ -40,8 +36,35 @@
     <div class="main-content">
         <div class="container-fluid page-shell">
             <div class="page-header">
-                <h1 class="page-title"><span class="title-icon"><i class="fas fa-wallet"></i></span>All Transactions</h1>
-                <p class="page-subtitle">Search, filter, and manage every transaction from a single clean table built with the same palette as the rest of the app.</p>
+                <div class="main-brand">
+                    <div class="logo-icon"><i class="fas fa-chart-pie"></i></div>
+                    <h3 class="logo-text">Flow</h3>
+                </div>
+            </div>
+            <h1 class="page-title"><span class="title-icon"><i class="fas fa-wallet"></i></span>All Transactions</h1>
+
+            <div class="row g-4 mb-4">
+                <div class="col-lg-4 col-md-6">
+                    <div class="card shadow compact-card h-100">
+                        <p class="insight-kicker">Total Transactions</p>
+                        <h3 class="insight-value" id="totalTransactionsMetric">0</h3>
+                        <p class="insight-note">Everything recorded in your account.</p>
+                    </div>
+                </div>
+                <div class="col-lg-4 col-md-6">
+                    <div class="card shadow compact-card h-100">
+                        <p class="insight-kicker">Visible Results</p>
+                        <h3 class="insight-value" id="visibleTransactionsMetric">0</h3>
+                        <p class="insight-note">Updated live as you search and filter.</p>
+                    </div>
+                </div>
+                <div class="col-lg-4 col-md-12">
+                    <div class="card shadow compact-card h-100">
+                        <p class="insight-kicker">Visible Spend</p>
+                        <h3 class="insight-value" id="visibleSpendMetric">&#8377;0</h3>
+                        <p class="insight-note">A quick total for the transactions on screen.</p>
+                    </div>
+                </div>
             </div>
 
             <div class="card shadow p-3 mb-4">
@@ -131,6 +154,7 @@
             const expenses = applyFilters(FinCastData.getExpenses());
             const tbody = document.getElementById('transactionTableBody');
             tbody.innerHTML = '';
+            updateMetrics(expenses);
 
             const categoryIcons = {
                 Food: 'fa-utensils',
@@ -331,6 +355,15 @@
             link.click();
             link.remove();
             URL.revokeObjectURL(url);
+        }
+
+        function updateMetrics(visibleExpenses) {
+            const totalExpenses = FinCastData.getExpenses();
+            const visibleSpend = visibleExpenses.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+
+            document.getElementById('totalTransactionsMetric').textContent = totalExpenses.length;
+            document.getElementById('visibleTransactionsMetric').textContent = visibleExpenses.length;
+            document.getElementById('visibleSpendMetric').textContent = FinCastData.formatCurrency(visibleSpend);
         }
 
         window.addEventListener('fincast_data_change', function() {

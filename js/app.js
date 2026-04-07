@@ -11,6 +11,19 @@ const appPalette = {
     indigoSoft: 'rgba(43, 45, 66, 0.14)'
 };
 
+const chartCategoryColors = [
+    '#e63946',
+    '#1d3557',
+    '#2a9d8f',
+    '#f4a261',
+    '#6a4c93',
+    '#ffb703',
+    '#118ab2',
+    '#8ac926',
+    '#ff006e',
+    '#3a86ff'
+];
+
 document.addEventListener('DOMContentLoaded', async function() {
     if (!window.FinCastData?.requireAuth()) return;
 
@@ -316,29 +329,21 @@ function updateCharts() {
     if (window.categoryChart) {
         const labels = Object.keys(categoryTotals);
         const values = Object.values(categoryTotals);
-        const colors = [
-            appPalette.red,
-            appPalette.crimson,
-            appPalette.lavender,
-            appPalette.indigo,
-            '#f77f00',
-            '#457b9d',
-            '#2a9d8f',
-            '#6a4c93'
-        ];
-
         window.categoryChart.data.labels = labels.length ? labels : ['No expenses yet'];
         window.categoryChart.data.datasets[0].data = values.length ? values : [1];
-        window.categoryChart.data.datasets[0].backgroundColor = labels.length ? colors.slice(0, labels.length) : [appPalette.lavender];
+        window.categoryChart.data.datasets[0].backgroundColor = labels.length ? chartCategoryColors.slice(0, labels.length) : [appPalette.lavender];
         window.categoryChart.update();
     }
 
     updateMonthlyChart();
 
     const total = expenses.reduce((sum, item) => sum + Number(item.amount || 0), 0);
-    const remaining = monthlyBudget - total;
+    const analytics = window.FinCastData ? FinCastData.getAnalytics() : null;
+    const cycleSpent = analytics ? analytics.currentCycleSpent : total;
+    const remaining = monthlyBudget - cycleSpent;
     const totalExpenseEl = document.getElementById('total-expense');
     const budgetBalanceEl = document.getElementById('budget-balance');
+    const savedThisMonthEl = document.getElementById('saved-this-month-value');
 
     if (totalExpenseEl) totalExpenseEl.innerText = formatCurrency(total);
     if (budgetBalanceEl) {
@@ -346,22 +351,28 @@ function updateCharts() {
         budgetBalanceEl.classList.toggle('budget-balance-negative', remaining < 0);
         budgetBalanceEl.classList.toggle('budget-balance-positive', remaining >= 0);
     }
+    if (savedThisMonthEl) {
+        savedThisMonthEl.innerText = formatCurrency(Math.max(0, analytics ? analytics.currentCycleSaved : remaining));
+    }
 
     if (window.budgetChart) {
-        window.budgetChart.data.datasets[0].data = [Math.max(total, 0), Math.max(remaining, 0)];
+        window.budgetChart.data.datasets[0].data = [Math.max(cycleSpent, 0), Math.max(remaining, 0)];
         window.budgetChart.update();
     }
 }
 
 function updateBudgetStatus() {
     const budgetData = window.FinCastData ? FinCastData.getBudget() : { monthly: monthlyBudget };
+    const analytics = window.FinCastData ? FinCastData.getAnalytics() : null;
     monthlyBudget = Number(budgetData.monthly) || monthlyBudget;
 
     const spent = expenses.reduce((sum, item) => sum + Number(item.amount || 0), 0);
-    const remaining = monthlyBudget - spent;
+    const cycleSpent = analytics ? analytics.currentCycleSpent : spent;
+    const remaining = monthlyBudget - cycleSpent;
     const totalExpenseEl = document.getElementById('total-expense');
     const budgetBalanceEl = document.getElementById('budget-balance');
     const budgetMsg = document.getElementById('budget-message');
+    const savedThisMonthEl = document.getElementById('saved-this-month-value');
 
     if (totalExpenseEl) totalExpenseEl.innerText = formatCurrency(spent);
     if (budgetBalanceEl) {
@@ -369,22 +380,31 @@ function updateBudgetStatus() {
         budgetBalanceEl.classList.toggle('budget-balance-negative', remaining < 0);
         budgetBalanceEl.classList.toggle('budget-balance-positive', remaining >= 0);
     }
+    if (savedThisMonthEl) {
+        savedThisMonthEl.innerText = formatCurrency(Math.max(0, analytics ? analytics.currentCycleSaved : remaining));
+    }
 
     if (window.budgetChart) {
-        window.budgetChart.data.datasets[0].data = [Math.max(spent, 0), Math.max(remaining, 0)];
+        window.budgetChart.data.datasets[0].data = [Math.max(cycleSpent, 0), Math.max(remaining, 0)];
         window.budgetChart.update();
     }
 
     if (!budgetMsg) return;
 
-    if (spent < monthlyBudget * 0.6) {
-        budgetMsg.innerText = 'You are doing great this month. Keep saving.';
+    if (cycleSpent < monthlyBudget * 0.6) {
+        budgetMsg.innerText = analytics?.cycleLabel
+            ? `You are doing great this cycle. Budget window: ${analytics.cycleLabel}.`
+            : 'You are doing great this month. Keep saving.';
         budgetMsg.style.color = appPalette.red;
-    } else if (spent < monthlyBudget) {
-        budgetMsg.innerText = 'You are getting close to your monthly budget.';
+    } else if (cycleSpent < monthlyBudget) {
+        budgetMsg.innerText = analytics?.cycleLabel
+            ? `You are getting close to your budget. Active cycle: ${analytics.cycleLabel}.`
+            : 'You are getting close to your monthly budget.';
         budgetMsg.style.color = appPalette.lavender;
     } else {
-        budgetMsg.innerText = `Warning: you are over budget by ${formatCurrency(Math.abs(remaining))}.`;
+        budgetMsg.innerText = analytics?.cycleLabel
+            ? `Warning: you are over budget by ${formatCurrency(Math.abs(remaining))}. Active cycle: ${analytics.cycleLabel}.`
+            : `Warning: you are over budget by ${formatCurrency(Math.abs(remaining))}.`;
         budgetMsg.style.color = appPalette.crimson;
     }
 }

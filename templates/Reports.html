@@ -17,10 +17,6 @@
     <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
 
     <aside class="sidebar">
-        <div class="sidebar-logo">
-            <div class="logo-icon"><i class="fas fa-chart-pie"></i></div>
-            <h3 class="logo-text">Flow</h3>
-        </div>
         <div class="profile-section">
             <div class="profile-photo"><i class="fas fa-user"></i></div>
             <div class="username" id="profileName">John Doe</div>
@@ -41,41 +37,44 @@
     <div class="main-content">
         <div class="container-fluid page-shell">
             <div class="page-header">
-                <h1 class="page-title"><span class="title-icon"><i class="fas fa-file-alt"></i></span>Financial Reports</h1>
-                <p class="page-subtitle">Generate polished summaries, compare budget outcomes, and keep report history inside the same minimalist interface.</p>
-            </div>
-
-            <div class="row g-4 mb-4">
-                <div class="col-lg-4 col-md-6">
-                    <div class="tile-card">
-                        <div class="tile-icon"><i class="fas fa-calendar-alt"></i></div>
-                        <h5 class="tile-title">Monthly Report</h5>
-                        <p class="tile-copy">A complete spending summary with category breakdowns and trends for any month.</p>
-                        <button class="btn btn-primary w-100 report-generate-btn" data-report-type="monthly"><i class="fas fa-download"></i> Generate Report</button>
-                    </div>
-                </div>
-                <div class="col-lg-4 col-md-6">
-                    <div class="tile-card">
-                        <div class="tile-icon"><i class="fas fa-chart-pie"></i></div>
-                        <h5 class="tile-title">Category Analysis</h5>
-                        <p class="tile-copy">See category distribution, movement over time, and top contributors in one report.</p>
-                        <button class="btn btn-primary w-100 report-generate-btn" data-report-type="category"><i class="fas fa-download"></i> Generate Report</button>
-                    </div>
-                </div>
-                <div class="col-lg-4 col-md-6">
-                    <div class="tile-card">
-                        <div class="tile-icon"><i class="fas fa-bullseye"></i></div>
-                        <h5 class="tile-title">Budget Report</h5>
-                        <p class="tile-copy">Compare planned versus actual spending and highlight the biggest gaps clearly.</p>
-                        <button class="btn btn-primary w-100 report-generate-btn" data-report-type="budget"><i class="fas fa-download"></i> Generate Report</button>
-                    </div>
+                <div class="main-brand">
+                    <div class="logo-icon"><i class="fas fa-chart-pie"></i></div>
+                    <h3 class="logo-text">Flow</h3>
                 </div>
             </div>
+            <h1 class="page-title"><span class="title-icon"><i class="fas fa-file-alt"></i></span>Financial Reports</h1>
 
             <div class="card chart-card shadow p-4 mb-4">
                 <h5><i class="section-icon fas fa-chart-column"></i>Yearly Spending Overview</h5>
                 <div class="chart-frame chart-frame-tall">
                     <canvas id="yearlyChart"></canvas>
+                </div>
+            </div>
+
+            <div class="row g-4 mb-4">
+                <div class="col-lg-4 col-md-6">
+                    <div class="tile-card w-100">
+                        <div class="tile-icon"><i class="fas fa-calendar-alt"></i></div>
+                        <h5 class="tile-title">Monthly Report</h5>
+                        <p class="tile-copy">Start with a clean monthly summary and latest transaction context.</p>
+                        <button class="btn btn-primary w-100 report-generate-btn" data-report-type="monthly"><i class="fas fa-download"></i> Generate Report</button>
+                    </div>
+                </div>
+                <div class="col-lg-4 col-md-6">
+                    <div class="tile-card w-100">
+                        <div class="tile-icon"><i class="fas fa-chart-pie"></i></div>
+                        <h5 class="tile-title">Category Analysis</h5>
+                        <p class="tile-copy">Break down spend by category when you need deeper comparisons.</p>
+                        <button class="btn btn-primary w-100 report-generate-btn" data-report-type="category"><i class="fas fa-download"></i> Generate Report</button>
+                    </div>
+                </div>
+                <div class="col-lg-4 col-md-12">
+                    <div class="tile-card w-100">
+                        <div class="tile-icon"><i class="fas fa-bullseye"></i></div>
+                        <h5 class="tile-title">Budget Report</h5>
+                        <p class="tile-copy">Review planned versus actual spend and spot budget pressure fast.</p>
+                        <button class="btn btn-primary w-100 report-generate-btn" data-report-type="budget"><i class="fas fa-download"></i> Generate Report</button>
+                    </div>
                 </div>
             </div>
 

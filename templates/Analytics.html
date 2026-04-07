@@ -17,10 +17,6 @@
     <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
 
     <aside class="sidebar">
-        <div class="sidebar-logo">
-            <div class="logo-icon"><i class="fas fa-chart-pie"></i></div>
-            <h3 class="logo-text">Flow</h3>
-        </div>
         <div class="profile-section">
             <div class="profile-photo"><i class="fas fa-user"></i></div>
             <div class="username" id="profileName">John Doe</div>
@@ -41,9 +37,12 @@
     <div class="main-content">
         <div class="container-fluid page-shell">
             <div class="page-header">
-                <h1 class="page-title"><span class="title-icon"><i class="fas fa-chart-line"></i></span>Analytics Overview</h1>
-                <p class="page-subtitle">Review spending patterns, category performance, and projected monthly behavior without leaving the same visual system.</p>
+                <div class="main-brand">
+                    <div class="logo-icon"><i class="fas fa-chart-pie"></i></div>
+                    <h3 class="logo-text">Flow</h3>
+                </div>
             </div>
+            <h1 class="page-title"><span class="title-icon"><i class="fas fa-chart-line"></i></span>Analytics Overview</h1>
 
             <div class="row g-4 mb-4">
                 <div class="col-lg-3 col-md-6">
@@ -81,14 +80,17 @@
             </div>
 
             <div class="row g-4 mb-4">
-                <div class="col-lg-6">
+                <div class="col-12">
                     <div class="card chart-card shadow p-4">
-                        <h5><i class="section-icon fas fa-chart-bar"></i>Spending by Category</h5>
-                        <div class="chart-frame">
-                            <canvas id="categoryBarChart"></canvas>
+                        <h5><i class="section-icon fas fa-chart-line"></i>6-Month Spending Trend</h5>
+                        <div class="chart-frame chart-frame-tall">
+                            <canvas id="trendChart"></canvas>
                         </div>
                     </div>
                 </div>
+            </div>
+
+            <div class="row g-4">
                 <div class="col-lg-6">
                     <div class="card chart-card shadow p-4">
                         <h5><i class="section-icon fas fa-chart-area"></i>Monthly Comparison</h5>
@@ -97,14 +99,11 @@
                         </div>
                     </div>
                 </div>
-            </div>
-
-            <div class="row g-4">
-                <div class="col-12">
+                <div class="col-lg-6">
                     <div class="card chart-card shadow p-4">
-                        <h5><i class="section-icon fas fa-chart-line"></i>6-Month Spending Trend</h5>
-                        <div class="chart-frame chart-frame-tall">
-                            <canvas id="trendChart"></canvas>
+                        <h5><i class="section-icon fas fa-chart-bar"></i>Spending by Category</h5>
+                        <div class="chart-frame">
+                            <canvas id="categoryBarChart"></canvas>
                         </div>
                     </div>
                 </div>

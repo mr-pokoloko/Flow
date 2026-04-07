@@ -16,10 +16,6 @@
     <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
 
     <aside class="sidebar">
-        <div class="sidebar-logo">
-            <div class="logo-icon"><i class="fas fa-chart-pie"></i></div>
-            <h3 class="logo-text">Flow</h3>
-        </div>
         <div class="profile-section">
             <div class="profile-photo"><i class="fas fa-user"></i></div>
             <div class="username" id="profileName">John Doe</div>
@@ -40,9 +36,12 @@
     <div class="main-content">
         <div class="container-fluid page-shell">
             <div class="page-header">
-                <h1 class="page-title"><span class="title-icon"><i class="fas fa-cog"></i></span>Settings</h1>
-                <p class="page-subtitle">Manage profile details, budget preferences, notifications, and account protection with the same clean design language as the rest of the product.</p>
+                <div class="main-brand">
+                    <div class="logo-icon"><i class="fas fa-chart-pie"></i></div>
+                    <h3 class="logo-text">Flow</h3>
+                </div>
             </div>
+            <h1 class="page-title"><span class="title-icon"><i class="fas fa-cog"></i></span>Settings</h1>
 
             <div class="row g-4">
                 <div class="col-lg-6">
@@ -72,6 +71,33 @@
 
                 <div class="col-lg-6">
                     <div class="card shadow p-4">
+                        <h5><i class="section-icon fas fa-shield-alt"></i>Security</h5>
+                        <form id="securityForm">
+                            <div class="mb-3">
+                                <label for="currentPassword">Current Password</label>
+                                <input id="currentPassword" type="password" class="form-control" placeholder="Enter current password">
+                            </div>
+                            <div class="mb-3">
+                                <label for="newPassword">New Password</label>
+                                <input id="newPassword" type="password" class="form-control" placeholder="Enter new password">
+                            </div>
+                            <div class="mb-3">
+                                <label for="confirmPassword">Confirm New Password</label>
+                                <input id="confirmPassword" type="password" class="form-control" placeholder="Confirm new password">
+                            </div>
+                            <div class="switch-row pt-0">
+                                <input class="form-check-input" id="twoFactor" type="checkbox" checked>
+                                <label for="twoFactor" class="mb-0">Two-Factor Authentication<br><span class="muted-copy">Add an extra layer of account protection.</span></label>
+                            </div>
+                            <button type="submit" class="btn btn-primary"><i class="fas fa-key"></i> Update Password</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row g-4 mt-1">
+                <div class="col-lg-6">
+                    <div class="card shadow p-4">
                         <h5><i class="section-icon fas fa-wallet"></i>Budget Settings</h5>
                         <form id="budgetForm">
                             <div class="mb-3">
@@ -99,13 +125,19 @@
                                     <option value="GBP">British Pound (&pound;)</option>
                                 </select>
                             </div>
+                            <div class="switch-row pt-0">
+                                <input class="form-check-input" id="autoRenewBudget" type="checkbox">
+                                <label for="autoRenewBudget" class="mb-0">Renew Budget Monthly<br><span class="muted-copy">Reset the active budget cycle on your chosen day each month.</span></label>
+                            </div>
+                            <div class="mb-3">
+                                <label for="budgetRenewalDay">Renewal Day</label>
+                                <input type="number" id="budgetRenewalDay" class="form-control" min="1" max="31" value="1">
+                            </div>
                             <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Save Budget</button>
                         </form>
                     </div>
                 </div>
-            </div>
 
-            <div class="row g-4 mt-1">
                 <div class="col-lg-6">
                     <div class="card shadow p-4">
                         <h5><i class="section-icon fas fa-bell"></i>Notifications</h5>
@@ -125,31 +157,6 @@
                             <input class="form-check-input" id="billReminders" type="checkbox" checked>
                             <label for="billReminders" class="mb-0">Bill Reminders<br><span class="muted-copy">Stay ahead of recurring due dates automatically.</span></label>
                         </div>
-                    </div>
-                </div>
-
-                <div class="col-lg-6">
-                    <div class="card shadow p-4">
-                        <h5><i class="section-icon fas fa-shield-alt"></i>Security</h5>
-                        <form id="securityForm">
-                            <div class="mb-3">
-                                <label for="currentPassword">Current Password</label>
-                                <input id="currentPassword" type="password" class="form-control" placeholder="Enter current password">
-                            </div>
-                            <div class="mb-3">
-                                <label for="newPassword">New Password</label>
-                                <input id="newPassword" type="password" class="form-control" placeholder="Enter new password">
-                            </div>
-                            <div class="mb-3">
-                                <label for="confirmPassword">Confirm New Password</label>
-                                <input id="confirmPassword" type="password" class="form-control" placeholder="Confirm new password">
-                            </div>
-                            <div class="switch-row pt-0">
-                                <input class="form-check-input" id="twoFactor" type="checkbox" checked>
-                                <label for="twoFactor" class="mb-0">Two-Factor Authentication<br><span class="muted-copy">Add an extra layer of account protection.</span></label>
-                            </div>
-                            <button type="submit" class="btn btn-primary"><i class="fas fa-key"></i> Update Password</button>
-                        </form>
                     </div>
                 </div>
             </div>
@@ -199,11 +206,15 @@
             const budgetValue = Number(document.getElementById('monthlyBudget').value) || 0;
             const thresholdValue = Number(document.getElementById('budgetAlertThreshold').value);
             const currencyValue = document.getElementById('currencySelect').value;
+            const autoRenewValue = document.getElementById('autoRenewBudget').checked;
+            const renewalDayValue = Number(document.getElementById('budgetRenewalDay').value) || 1;
 
             FinCastData.updateBudget({
                 monthly: budgetValue,
                 alertThreshold: thresholdValue,
-                currency: currencyValue
+                currency: currencyValue,
+                autoRenew: autoRenewValue,
+                renewalDay: renewalDayValue
             });
             FinCastData.allowRemoteSync();
 
@@ -256,6 +267,10 @@
             });
         }
 
+        function syncRenewalFieldState() {
+            document.getElementById('budgetRenewalDay').disabled = !document.getElementById('autoRenewBudget').checked;
+        }
+
         function deleteAccount() {
             if (!confirm('Delete this account and all saved data on this device?')) return;
             FinCastData.deleteCurrentAccount();
@@ -277,6 +292,9 @@
             document.getElementById('monthlyBudget').value = budget.monthly || 5000;
             document.getElementById('budgetAlertThreshold').value = String(budget.alertThreshold || 80);
             document.getElementById('currencySelect').value = budget.currency || 'INR';
+            document.getElementById('autoRenewBudget').checked = Boolean(budget.autoRenew);
+            document.getElementById('budgetRenewalDay').value = budget.renewalDay || 1;
+            syncRenewalFieldState();
 
             document.getElementById('budgetAlerts').checked = Boolean(settings.budgetAlerts);
             document.getElementById('weeklySummary').checked = Boolean(settings.weeklySummary);
@@ -293,6 +311,7 @@
             document.getElementById('budgetForm').addEventListener('submit', saveBudget);
             document.getElementById('securityForm').addEventListener('submit', saveSecurity);
             document.getElementById('deleteAccountBtn').addEventListener('click', deleteAccount);
+            document.getElementById('autoRenewBudget').addEventListener('change', syncRenewalFieldState);
             ['budgetAlerts', 'weeklySummary', 'largeExpenseAlerts', 'billReminders', 'twoFactor'].forEach(id => {
                 document.getElementById(id).addEventListener('change', saveNotificationSettings);
             });

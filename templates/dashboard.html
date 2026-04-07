@@ -19,11 +19,6 @@
     <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
 
     <aside class="sidebar">
-        <div class="sidebar-logo">
-            <div class="logo-icon"><i class="fas fa-chart-pie"></i></div>
-            <h3 class="logo-text">Flow</h3>
-        </div>
-
         <div class="profile-section">
             <div class="profile-photo"><i class="fas fa-user"></i></div>
             <div class="username" id="profileName">John Doe</div>
@@ -47,19 +42,23 @@
     </aside>
 
     <div class="main-content">
-        <div class="notification-icon-black" onclick="toggleNotifications()">
-            <i class="fas fa-bell"></i>
-            <span class="notification-dot" id="notificationDot" style="display: none;"></span>
-        </div>
-
         <div class="container-fluid page-shell">
             <div class="page-header">
-                <h1 class="page-title">
-                    <span class="title-icon"><i class="fas fa-th-large"></i></span>
-                    Dashboard
-                </h1>
-                <p class="page-subtitle">Track expenses, review budgets, and keep recurring payments under control with one consistent workspace.</p>
+                <div class="page-header-top">
+                    <div class="main-brand">
+                        <div class="logo-icon"><i class="fas fa-chart-pie"></i></div>
+                        <h3 class="logo-text">Flow</h3>
+                    </div>
+                    <div class="notification-icon-black" onclick="toggleNotifications()">
+                        <i class="fas fa-bell"></i>
+                        <span class="notification-dot" id="notificationDot" style="display: none;"></span>
+                    </div>
+                </div>
             </div>
+            <h1 class="page-title">
+                <span class="title-icon"><i class="fas fa-th-large"></i></span>
+                Dashboard
+            </h1>
 
             <div class="card summary-card mb-4">
                 <div class="summary-split">
@@ -71,33 +70,15 @@
                         <h6><i class="fas fa-wallet"></i> Budget Left</h6>
                         <h2 id="budget-balance" class="budget-balance-positive">&#8377;5000</h2>
                     </div>
+                    <div class="summary-pane" id="saved-this-month">
+                        <h6><i class="fas fa-piggy-bank"></i> Total Saved This Month</h6>
+                        <h2 id="saved-this-month-value">&#8377;0</h2>
+                    </div>
                 </div>
             </div>
 
             <div class="row g-4">
-                <div class="col-lg-4 col-md-6">
-                    <div class="card shadow p-4 h-100">
-                        <h5><i class="section-icon fas fa-plus-circle"></i>Add Expense</h5>
-                        <form id="expense-form">
-                            <input type="text" id="expense-name" class="form-control mb-3" placeholder="Expense name" required>
-                            <input type="number" id="expense-amount" class="form-control mb-3" placeholder="Amount" required>
-                            <select id="expense-category" class="form-select mb-3">
-                                <option>Food</option>
-                                <option>Transport</option>
-                                <option>Shopping</option>
-                                <option>Bills</option>
-                                <option>Entertainment</option>
-                                <option>Health</option>
-                                <option>Education</option>
-                                <option>Other</option>
-                            </select>
-                            <input type="date" id="expense-date" class="form-control mb-3">
-                            <button class="btn btn-primary w-100"><i class="fas fa-plus"></i> Add Expense</button>
-                        </form>
-                    </div>
-                </div>
-
-                <div class="col-lg-4 col-md-12">
+                <div class="col-lg-8">
                     <div class="card chart-card shadow p-4 h-100">
                         <h5><i class="section-icon fas fa-chart-pie"></i>Monthly Budget Overview</h5>
                         <div class="chart-frame">
@@ -106,7 +87,25 @@
                     </div>
                 </div>
 
-                <div class="col-lg-4 col-md-6">
+                <div class="col-lg-4">
+                    <div class="section-stack">
+                        <div class="card shadow p-4" id="budget-status">
+                            <h6><i class="section-icon fas fa-info-circle"></i>Spending Status</h6>
+                            <p id="budget-message" class="muted-copy mb-0 mt-2"></p>
+                        </div>
+
+                        <div class="card chart-card chart-card-compact shadow p-4">
+                            <h6><i class="section-icon fas fa-chart-line"></i>Monthly Trend</h6>
+                            <div class="chart-frame">
+                                <canvas id="monthlyChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row g-4 mt-1">
+                <div class="col-lg-7">
                     <div class="card shadow p-4 h-100">
                         <div class="d-flex justify-content-between align-items-center mb-3">
                             <h5><i class="section-icon fas fa-sync-alt"></i>Recurring Expenses</h5>
@@ -149,35 +148,42 @@
                         </div>
                     </div>
                 </div>
-            </div>
 
-            <div class="row g-4 mt-1">
-                <div class="col-lg-6">
-                    <div class="card chart-card shadow p-4">
+                <div class="col-lg-5">
+                    <div class="card chart-card shadow p-4 h-100">
                         <h5><i class="section-icon fas fa-chart-bar"></i>Expense Distribution</h5>
                         <div class="chart-frame">
                             <canvas id="categoryChart"></canvas>
                         </div>
                     </div>
                 </div>
-
-                <div class="col-lg-4">
-                    <div class="card shadow p-4 mb-3" id="budget-status">
-                        <h6><i class="section-icon fas fa-info-circle"></i>Spending Status</h6>
-                        <p id="budget-message" class="muted-copy mb-0 mt-2"></p>
-                    </div>
-                    <div class="card chart-card shadow p-4">
-                        <h6><i class="section-icon fas fa-chart-line"></i>Monthly Trend</h6>
-                        <div class="chart-frame">
-                            <canvas id="monthlyChart"></canvas>
-                        </div>
-                    </div>
-                </div>
             </div>
 
-            <div class="row mt-4">
-                <div class="col-12">
-                    <div class="card shadow p-4">
+            <div class="row g-4 mt-1">
+                <div class="col-lg-5">
+                    <div class="card shadow p-4 h-100">
+                        <h5><i class="section-icon fas fa-plus-circle"></i>Add Expense</h5>
+                        <form id="expense-form">
+                            <input type="text" id="expense-name" class="form-control mb-3" placeholder="Expense name" required>
+                            <input type="number" id="expense-amount" class="form-control mb-3" placeholder="Amount" required>
+                            <select id="expense-category" class="form-select mb-3">
+                                <option>Food</option>
+                                <option>Transport</option>
+                                <option>Shopping</option>
+                                <option>Bills</option>
+                                <option>Entertainment</option>
+                                <option>Health</option>
+                                <option>Education</option>
+                                <option>Other</option>
+                            </select>
+                            <input type="date" id="expense-date" class="form-control mb-3">
+                            <button class="btn btn-primary w-100"><i class="fas fa-plus"></i> Add Expense</button>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="col-lg-7">
+                    <div class="card shadow p-4 h-100">
                         <h5><i class="section-icon fas fa-list"></i>Recent Expenses</h5>
                         <div class="table-responsive">
                             <table class="table table-hover">

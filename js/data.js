@@ -10,7 +10,9 @@ const FINCAST_LEGACY_SETTINGS_KEY = 'fincast_settings';
 const DEFAULT_BUDGET = {
     monthly: 5000,
     alertThreshold: 80,
-    currency: 'INR'
+    currency: 'INR',
+    autoRenew: false,
+    renewalDay: 1
 };
 
 const DEFAULT_SETTINGS = {
@@ -238,6 +240,47 @@ const FinCastData = {
         return `${this.getCurrencySymbol()}${value.toLocaleString('en-IN', {
             maximumFractionDigits: 2
         })}`;
+    },
+
+    clampRenewalDay(day, year, month) {
+        const safeDay = Math.min(Math.max(Number(day) || 1, 1), 31);
+        const maxDay = new Date(year, month + 1, 0).getDate();
+        return Math.min(safeDay, maxDay);
+    },
+
+    getBudgetCycleInfo(referenceDate = new Date()) {
+        const budget = this.getBudget();
+        const current = new Date(referenceDate);
+        let start;
+        let nextStart;
+
+        if (budget.autoRenew) {
+            const currentRenewalDay = this.clampRenewalDay(budget.renewalDay, current.getFullYear(), current.getMonth());
+            if (current.getDate() >= currentRenewalDay) {
+                start = new Date(current.getFullYear(), current.getMonth(), currentRenewalDay);
+            } else {
+                const previousMonth = new Date(current.getFullYear(), current.getMonth() - 1, 1);
+                const previousRenewalDay = this.clampRenewalDay(budget.renewalDay, previousMonth.getFullYear(), previousMonth.getMonth());
+                start = new Date(previousMonth.getFullYear(), previousMonth.getMonth(), previousRenewalDay);
+            }
+
+            const nextMonth = new Date(start.getFullYear(), start.getMonth() + 1, 1);
+            const nextRenewalDay = this.clampRenewalDay(budget.renewalDay, nextMonth.getFullYear(), nextMonth.getMonth());
+            nextStart = new Date(nextMonth.getFullYear(), nextMonth.getMonth(), nextRenewalDay);
+        } else {
+            start = new Date(current.getFullYear(), current.getMonth(), 1);
+            nextStart = new Date(current.getFullYear(), current.getMonth() + 1, 1);
+        }
+
+        const end = new Date(nextStart);
+        end.setDate(end.getDate() - 1);
+
+        return {
+            start,
+            end,
+            nextStart,
+            label: `${this.formatDate(start)} - ${this.formatDate(end)}`
+        };
     },
 
     async registerUser(profile) {
@@ -494,7 +537,10 @@ const FinCastData = {
         state.budgetsByUser[username] = {
             ...this.getBudget(),
             ...budget,
-            monthly: Number(budget.monthly ?? this.getBudget().monthly) || DEFAULT_BUDGET.monthly
+            monthly: Number(budget.monthly ?? this.getBudget().monthly) || DEFAULT_BUDGET.monthly,
+            alertThreshold: Number(budget.alertThreshold ?? this.getBudget().alertThreshold) || DEFAULT_BUDGET.alertThreshold,
+            autoRenew: Boolean(budget.autoRenew ?? this.getBudget().autoRenew),
+            renewalDay: Math.min(Math.max(Number(budget.renewalDay ?? this.getBudget().renewalDay) || 1, 1), 31)
         };
         this.setState(state);
         this.syncLegacyStorage();
@@ -526,6 +572,7 @@ const FinCastData = {
     getAnalytics() {
         const expenses = this.getExpenses();
         const budget = this.getBudget();
+        const cycle = this.getBudgetCycleInfo();
         const now = new Date();
         const currentMonth = now.getMonth();
         const currentYear = now.getFullYear();
@@ -537,7 +584,7 @@ const FinCastData = {
         const monthlyTotals = new Array(12).fill(0);
         const previousYearMonthlyTotals = new Array(12).fill(0);
         const expensesByDay = {};
-        const expensesThisMonth = [];
+        const expensesThisCycle = [];
 
         expenses.forEach(expense => {
             const amount = Number(expense.amount) || 0;
@@ -560,8 +607,8 @@ const FinCastData = {
                     previousYearMonthlyTotals[month] += amount;
                 }
 
-                if (year === currentYear && month === currentMonth) {
-                    expensesThisMonth.push({ ...expense, amount });
+                if (date >= cycle.start && date < cycle.nextStart) {
+                    expensesThisCycle.push({ ...expense, amount });
                 }
             }
         });
@@ -571,6 +618,7 @@ const FinCastData = {
         const averageTransaction = expenses.length > 0 ? totalSpent / expenses.length : 0;
         const topEntry = Object.entries(categoryTotals).sort((a, b) => b[1] - a[1])[0] || ['-', 0];
         const monthSpent = monthlyTotals[currentMonth] || 0;
+        const cycleSpent = expensesThisCycle.reduce((sum, item) => sum + Number(item.amount || 0), 0);
         const currentDay = Math.max(now.getDate(), 1);
         const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
         const predictedMonthly = currentDay > 0 ? Math.round((monthSpent / currentDay) * daysInMonth) : monthSpent;
@@ -589,11 +637,17 @@ const FinCastData = {
             previousYearMonthlyTotals,
             expensesByDay,
             currentMonthSpent: monthSpent,
+            currentCycleSpent: cycleSpent,
+            currentCycleSaved: Math.max(0, budget.monthly - cycleSpent),
+            cycleBudgetLeft: budget.monthly - cycleSpent,
+            cycleLabel: cycle.label,
+            cycleStart: cycle.start,
+            cycleEnd: cycle.end,
             topCategory: topEntry[0],
             topCategoryShare: totalSpent > 0 ? Math.round((topEntry[1] / totalSpent) * 100) : 0,
-            savingsRate: budget.monthly > 0 ? Math.round((Math.max(0, budget.monthly - monthSpent) / budget.monthly) * 100) : 0,
+            savingsRate: budget.monthly > 0 ? Math.round((Math.max(0, budget.monthly - cycleSpent) / budget.monthly) * 100) : 0,
             recentSixMonths,
-            thisMonthTransactions: expensesThisMonth
+            thisMonthTransactions: expensesThisCycle
         };
     },
 
@@ -696,13 +750,13 @@ const FinCastData = {
         const notifications = [];
         const thresholdAmount = (budget.monthly || DEFAULT_BUDGET.monthly) * ((budget.alertThreshold || DEFAULT_BUDGET.alertThreshold) / 100);
 
-        if (settings.budgetAlerts && analytics.currentMonthSpent >= thresholdAmount && budget.monthly > 0) {
+        if (settings.budgetAlerts && analytics.currentCycleSpent >= thresholdAmount && budget.monthly > 0) {
             notifications.push({
                 id: this.makeId('note'),
                 icon: 'fa-exclamation-triangle',
                 title: 'Budget watch',
-                body: `You have spent ${this.formatCurrency(analytics.currentMonthSpent)} this month against a budget of ${this.formatCurrency(budget.monthly)}.`,
-                meta: 'Review your biggest categories to avoid overspending.',
+                body: `You have spent ${this.formatCurrency(analytics.currentCycleSpent)} in the current budget cycle against ${this.formatCurrency(budget.monthly)}.`,
+                meta: `Budget cycle: ${analytics.cycleLabel}`,
                 tone: 'warning'
             });
         }
