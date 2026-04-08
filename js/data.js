@@ -899,13 +899,14 @@ const FinCastData = {
         const budget = this.getBudget();
         const reportDate = new Date();
         const reportContent = this.buildReportContent(reportType, analytics, budget, reportDate);
+        const pdfBytes = this.buildPdfReport(this.getReportName(reportType, reportDate), reportContent);
         const report = {
             id: this.makeId('rpt'),
             type: reportType,
             name: this.getReportName(reportType, reportDate),
             period: this.getReportPeriod(reportType, reportDate),
             generatedOn: reportDate.toISOString(),
-            size: `${Math.max(1, Math.round(reportContent.length / 1024))} KB`,
+            size: `${Math.max(1, Math.round(pdfBytes.length / 1024))} KB`,
             content: reportContent
         };
 
@@ -935,16 +936,99 @@ const FinCastData = {
         const report = this.getReports().find(item => String(item.id) === String(id));
         if (!report) return false;
 
-        const blob = new Blob([report.content], { type: 'text/plain;charset=utf-8' });
+        const pdfBytes = this.buildPdfReport(report.name, report.content);
+        const blob = new Blob([pdfBytes], { type: 'application/pdf' });
         const href = URL.createObjectURL(blob);
         const anchor = document.createElement('a');
         anchor.href = href;
-        anchor.download = `${report.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.txt`;
+        anchor.download = `${report.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.pdf`;
         document.body.appendChild(anchor);
         anchor.click();
         anchor.remove();
         URL.revokeObjectURL(href);
         return true;
+    },
+
+    buildPdfReport(title, content) {
+        const encoder = new TextEncoder();
+        const pageWidth = 612;
+        const pageHeight = 792;
+        const marginX = 56;
+        const startY = 736;
+        const lineHeight = 16;
+        const maxCharsPerLine = 78;
+        const lines = [
+            title,
+            '',
+            ...String(content || '').split('\n')
+        ].flatMap(line => this.wrapPdfLine(line, maxCharsPerLine));
+
+        const linesPerPage = Math.max(1, Math.floor((startY - 56) / lineHeight));
+        const pages = [];
+        for (let index = 0; index < lines.length; index += linesPerPage) {
+            pages.push(lines.slice(index, index + linesPerPage));
+        }
+
+        const objects = [];
+        objects[1] = '<< /Type /Catalog /Pages 2 0 R >>';
+        objects[2] = `<< /Type /Pages /Kids [${pages.map((_, index) => `${4 + (index * 2)} 0 R`).join(' ')}] /Count ${pages.length} >>`;
+        objects[3] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>';
+
+        pages.forEach((pageLines, index) => {
+            const pageId = 4 + (index * 2);
+            const contentId = pageId + 1;
+            const stream = [
+                'BT',
+                '/F1 12 Tf',
+                `${marginX} ${startY} Td`,
+                `${lineHeight} TL`,
+                ...pageLines.map((line, lineIndex) => `${lineIndex === 0 ? '' : 'T* ' }(${this.escapePdfText(line)}) Tj`.trim()),
+                'ET'
+            ].join('\n');
+
+            objects[pageId] = `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Resources << /Font << /F1 3 0 R >> >> /Contents ${contentId} 0 R >>`;
+            objects[contentId] = `<< /Length ${encoder.encode(stream).length} >>\nstream\n${stream}\nendstream`;
+        });
+
+        let pdf = '%PDF-1.4\n';
+        const offsets = [0];
+        for (let index = 1; index < objects.length; index += 1) {
+            offsets[index] = encoder.encode(pdf).length;
+            pdf += `${index} 0 obj\n${objects[index]}\nendobj\n`;
+        }
+
+        const xrefOffset = encoder.encode(pdf).length;
+        pdf += `xref\n0 ${objects.length}\n`;
+        pdf += '0000000000 65535 f \n';
+        for (let index = 1; index < objects.length; index += 1) {
+            pdf += `${String(offsets[index]).padStart(10, '0')} 00000 n \n`;
+        }
+        pdf += `trailer\n<< /Size ${objects.length} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
+        return encoder.encode(pdf);
+    },
+
+    wrapPdfLine(line, maxCharsPerLine) {
+        const value = String(line ?? '');
+        if (!value) return [' '];
+
+        const wrapped = [];
+        let remaining = value;
+        while (remaining.length > maxCharsPerLine) {
+            const slice = remaining.slice(0, maxCharsPerLine + 1);
+            const breakAt = Math.max(slice.lastIndexOf(' '), slice.lastIndexOf('-'));
+            const splitIndex = breakAt > 12 ? breakAt : maxCharsPerLine;
+            wrapped.push(remaining.slice(0, splitIndex).trimEnd());
+            remaining = remaining.slice(splitIndex).trimStart();
+        }
+        wrapped.push(remaining);
+        return wrapped;
+    },
+
+    escapePdfText(value) {
+        return String(value || '')
+            .replace(/\\/g, '\\\\')
+            .replace(/\(/g, '\\(')
+            .replace(/\)/g, '\\)');
     },
 
     getNotifications() {

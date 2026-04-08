@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flow Profile</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+    <button class="sidebar-toggle" onclick="toggleSidebar()" aria-label="Toggle sidebar"><i class="fas fa-bars"></i></button>
+    <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+    <aside class="sidebar">
+        <nav class="sidebar-nav">
+            <ul class="menu">
+                <li><a href="dashboard.html"><i class="fas fa-th-large"></i><span>Dashboard</span></a></li>
+                <li><a href="Analytics.html"><i class="fas fa-chart-line"></i><span>Analytics</span></a></li>
+                <li><a href="Transactions.html"><i class="fas fa-wallet"></i><span>Transactions</span></a></li>
+                <li><a href="Reports.html"><i class="fas fa-file-alt"></i><span>Reports</span></a></li>
+            </ul>
+        </nav>
+        <a href="../index.html" class="signout-btn"><i class="fas fa-sign-out-alt"></i><span>Sign Out</span></a>
+    </aside>
+    <header class="topbar-shell p-3 mb-3 border-bottom">
+        <div class="container-fluid page-shell header-shell">
+            <div class="d-flex flex-wrap align-items-center justify-content-center justify-content-lg-start gap-3">
+                <a href="dashboard.html" class="topbar-brand d-flex align-items-center mb-2 mb-lg-0 text-decoration-none">
+                    <span class="logo-icon"><i class="fas fa-chart-pie"></i></span>
+                    <span class="logo-text">Flow</span>
+                </a>
+
+                <ul class="nav topbar-nav col-12 col-lg-auto me-lg-auto mb-2 justify-content-center mb-md-0">
+                    <li><a href="dashboard.html" class="nav-link px-2">Dashboard</a></li>
+                    <li><a href="Analytics.html" class="nav-link px-2">Analytics</a></li>
+                    <li><a href="Transactions.html" class="nav-link px-2">Transactions</a></li>
+                    <li><a href="Reports.html" class="nav-link px-2">Reports</a></li>
+                </ul>
+
+                <div class="dropdown text-end">
+                    <a href="#" class="topbar-profile-toggle d-flex align-items-center text-decoration-none dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                        <div class="profile-photo topbar-avatar"><i class="fas fa-user"></i></div>
+                    </a>
+                    <ul class="dropdown-menu dropdown-menu-end text-small topbar-dropdown">
+                        <li class="topbar-dropdown-profile">
+                            <strong id="profileName">John Doe</strong>
+                        </li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item active" href="Profile.html">Profile</a></li>
+                        <li><a class="dropdown-item" href="Settings.html">Settings</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item signout-btn" href="../index.html">Sign out</a></li>
+                    </ul>
+                </div>
+
+                <button class="notification-icon-black" onclick="toggleNotifications()" type="button" aria-label="Open notifications">
+                    <i class="fas fa-bell"></i>
+                    <span class="notification-dot" id="notificationDot" style="display: none;"></span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <div class="main-content">
+        <div class="container-fluid page-shell">
+            <div class="dashboard-title-bar">
+                <h1 class="page-title">
+                    <span class="title-icon"><i class="fas fa-user-circle"></i></span>
+                    Profile
+                </h1>
+                <a href="Settings.html" class="add-expense-trigger text-decoration-none">
+                    <span class="add-expense-trigger-icon"><i class="fas fa-cog"></i></span>
+                    <span>Edit Settings</span>
+                </a>
+            </div>
+
+            <div class="card shadow p-4">
+                <div class="row g-4 align-items-center">
+                    <div class="col-md-4">
+                        <div class="d-flex flex-column align-items-center text-center gap-3">
+                            <div class="profile-photo" style="width: 120px; height: 120px; border-radius: 28px;"><i class="fas fa-user"></i></div>
+                            <div>
+                                <h4 class="mb-1" id="profileFullName">John Doe</h4>
+                                <p class="muted-copy mb-0" id="profileRole">Premium Member</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-8">
+                        <div class="row g-3">
+                            <div class="col-sm-6">
+                                <div class="soft-panel h-100">
+                                    <small class="muted-copy d-block mb-2">Username</small>
+                                    <strong id="profileUsername">johndoe</strong>
+                                </div>
+                            </div>
+                            <div class="col-sm-6">
+                                <div class="soft-panel h-100">
+                                    <small class="muted-copy d-block mb-2">Email</small>
+                                    <strong id="profileEmail">john.doe@example.com</strong>
+                                </div>
+                            </div>
+                            <div class="col-sm-6">
+                                <div class="soft-panel h-100">
+                                    <small class="muted-copy d-block mb-2">Phone</small>
+                                    <strong id="profilePhone">+91 98765 43210</strong>
+                                </div>
+                            </div>
+                            <div class="col-sm-6">
+                                <div class="soft-panel h-100">
+                                    <small class="muted-copy d-block mb-2">Quick Links</small>
+                                    <div class="d-flex flex-wrap gap-2">
+                                        <a href="dashboard.html" class="btn btn-outline-secondary btn-sm">Dashboard</a>
+                                        <a href="Settings.html" class="btn btn-primary btn-sm">Settings</a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="notification-popup" id="notificationPopup">
+        <div class="notification-popup-content">
+            <div class="notification-popup-header">
+                <h6 class="mb-0"><i class="fas fa-bell"></i> Notifications</h6>
+                <button class="notification-popup-close" onclick="toggleNotifications()" type="button"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="notification-popup-body"></div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/js/data.js"></script>
+    <script>
+        function toggleSidebar() {
+            document.querySelector('.sidebar').classList.toggle('active');
+            document.querySelector('.sidebar-overlay').classList.toggle('active');
+        }
+
+        function toggleNotifications() {
+            document.getElementById('notificationPopup').classList.toggle('active');
+        }
+
+        function renderNotifications() {
+            const popupBody = document.querySelector('#notificationPopup .notification-popup-body');
+            const dot = document.getElementById('notificationDot');
+            if (!popupBody || !window.FinCastData) return;
+
+            const notifications = FinCastData.getNotifications();
+            popupBody.innerHTML = notifications.map(item => `
+                <div class="notification-popup-item">
+                    <div class="notification-popup-icon"><i class="fas ${item.icon}"></i></div>
+                    <div class="notification-popup-text">
+                        <strong>${item.title}</strong>
+                        <p>${item.body}</p>
+                        <small>${item.meta}</small>
+                    </div>
+                </div>
+            `).join('');
+
+            const hasActionable = notifications.some(item => item.tone !== 'success');
+            dot.style.display = hasActionable ? 'block' : 'none';
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            if (!window.FinCastData?.requireAuth()) return;
+            const user = FinCastData.getCurrentUser();
+            if (!user) return;
+
+            document.getElementById('profileName').textContent = FinCastData.getDisplayName();
+            document.getElementById('profileFullName').textContent = user.fullName || 'John Doe';
+            document.getElementById('profileRole').textContent = user.role || 'Member';
+            document.getElementById('profileUsername').textContent = user.username || 'johndoe';
+            document.getElementById('profileEmail').textContent = user.email || 'john.doe@example.com';
+            document.getElementById('profilePhone').textContent = user.phone || '+91 98765 43210';
+            renderNotifications();
+
+            document.querySelectorAll('.profile-photo').forEach(target => {
+                FinCastData.renderProfilePhoto(target);
+            });
+        });
+
+        window.addEventListener('fincast_data_change', function() {
+            const user = FinCastData.getCurrentUser();
+            if (!user) return;
+
+            document.getElementById('profileName').textContent = FinCastData.getDisplayName();
+            document.getElementById('profileFullName').textContent = user.fullName || 'John Doe';
+            document.getElementById('profileRole').textContent = user.role || 'Member';
+            document.getElementById('profileUsername').textContent = user.username || 'johndoe';
+            document.getElementById('profileEmail').textContent = user.email || 'john.doe@example.com';
+            document.getElementById('profilePhone').textContent = user.phone || '+91 98765 43210';
+            renderNotifications();
+
+            document.querySelectorAll('.profile-photo').forEach(target => {
+                FinCastData.renderProfilePhoto(target);
+            });
+        });
+    </script>
+</body>
+</html>

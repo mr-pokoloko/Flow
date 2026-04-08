@@ -50,9 +50,9 @@ function renderProfileName() {
     if (profileName && window.FinCastData) {
         profileName.textContent = FinCastData.getDisplayName();
     }
-    const profilePhoto = document.querySelector('.profile-photo');
-    if (profilePhoto && window.FinCastData) {
-        FinCastData.renderProfilePhoto(profilePhoto);
+    const profilePhotos = document.querySelectorAll('.profile-photo');
+    if (profilePhotos.length && window.FinCastData) {
+        profilePhotos.forEach(profilePhoto => FinCastData.renderProfilePhoto(profilePhoto));
     }
 }
 
