@@ -168,6 +168,10 @@
                     <div class="card shadow p-4">
                         <h5><i class="section-icon fas fa-bell"></i>Notifications</h5>
                         <div class="switch-row">
+                            <input class="form-check-input" id="darkModeToggle" type="checkbox" data-theme-setting>
+                            <label for="darkModeToggle" class="mb-0">Dark Mode<br><span class="muted-copy">Switch the dashboard, tables, and charts to a darker theme.</span></label>
+                        </div>
+                        <div class="switch-row">
                             <input class="form-check-input" id="budgetAlerts" type="checkbox" checked>
                             <label for="budgetAlerts" class="mb-0">Budget Alerts<br><span class="muted-copy">Get notified when approaching your budget limit.</span></label>
                         </div>
@@ -367,6 +371,7 @@
             document.getElementById('largeExpenseAlerts').checked = Boolean(settings.largeExpenseAlerts);
             document.getElementById('billReminders').checked = Boolean(settings.billReminders);
             document.getElementById('twoFactor').checked = settings.twoFactor !== false;
+            document.getElementById('darkModeToggle').checked = settings.theme === 'dark';
         }
 
         function handleProfileImageUpload(event) {

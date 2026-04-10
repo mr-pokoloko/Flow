@@ -20,7 +20,8 @@ const DEFAULT_SETTINGS = {
     weeklySummary: true,
     largeExpenseAlerts: false,
     billReminders: true,
-    twoFactor: true
+    twoFactor: true,
+    theme: 'light'
 };
 
 const DEFAULT_PROFILE = {
@@ -42,7 +43,9 @@ const FinCastData = {
         this.ensureDemoUser(state);
         this.setState(state);
         this.syncLegacyStorage();
+        this.applyTheme(this.getTheme());
         this.bindSignOutLinks();
+        this.bindThemeControls();
     },
 
     getState() {
@@ -729,8 +732,151 @@ const FinCastData = {
         };
         this.setState(state);
         this.syncLegacyStorage();
+        if (Object.prototype.hasOwnProperty.call(settings, 'theme')) {
+            this.applyTheme(state.settingsByUser[username].theme);
+        }
         this.notifyDataChange('settings_updated', state.settingsByUser[username]);
         return state.settingsByUser[username];
+    },
+
+    getTheme() {
+        return this.getSettings().theme === 'dark' ? 'dark' : 'light';
+    },
+
+    getChartPalette() {
+        if (this.getTheme() === 'dark') {
+            return {
+                indigo: '#f3f4f6',
+                lavender: '#94a3b8',
+                red: '#ff5d73',
+                crimson: '#ff3355',
+                redSoft: 'rgba(255, 93, 115, 0.22)',
+                crimsonSoft: 'rgba(255, 51, 85, 0.18)',
+                lavenderSoft: 'rgba(148, 163, 184, 0.18)',
+                indigoSoft: 'rgba(148, 163, 184, 0.18)',
+                neutral: '#111827'
+            };
+        }
+
+        return {
+            indigo: '#2b2d42',
+            lavender: '#8d99ae',
+            red: '#ef233c',
+            crimson: '#d80032',
+            redSoft: 'rgba(239, 35, 60, 0.15)',
+            crimsonSoft: 'rgba(216, 0, 50, 0.12)',
+            lavenderSoft: 'rgba(141, 153, 174, 0.14)',
+            indigoSoft: 'rgba(43, 45, 66, 0.14)',
+            neutral: '#edf2f4'
+        };
+    },
+
+    applyTheme(theme = this.getTheme()) {
+        const normalizedTheme = theme === 'dark' ? 'dark' : 'light';
+        if (document.documentElement) {
+            document.documentElement.dataset.theme = normalizedTheme;
+            document.documentElement.style.colorScheme = normalizedTheme;
+        }
+        if (document.body) {
+            document.body.dataset.theme = normalizedTheme;
+        }
+        this.refreshThemeToggleUI(normalizedTheme);
+        window.dispatchEvent(new CustomEvent('flow_theme_change', {
+            detail: { theme: normalizedTheme }
+        }));
+        return normalizedTheme;
+    },
+
+    toggleTheme() {
+        const nextTheme = this.getTheme() === 'dark' ? 'light' : 'dark';
+        this.updateSettings({ theme: nextTheme });
+        return nextTheme;
+    },
+
+    refreshThemeToggleUI(theme = this.getTheme()) {
+        const isDark = theme === 'dark';
+
+        document.querySelectorAll('[data-theme-toggle]').forEach(button => {
+            button.setAttribute('aria-pressed', String(isDark));
+            button.setAttribute('aria-label', isDark ? 'Switch to light mode' : 'Switch to dark mode');
+            button.setAttribute('title', isDark ? 'Switch to light mode' : 'Switch to dark mode');
+            button.classList.toggle('is-dark', isDark);
+
+            const icon = button.querySelector('i');
+            if (icon) {
+                icon.className = `fas ${isDark ? 'fa-sun' : 'fa-moon'}`;
+            }
+
+            const label = button.querySelector('.theme-toggle-label');
+            if (label) {
+                label.textContent = isDark ? 'Light mode' : 'Dark mode';
+            }
+        });
+
+        document.querySelectorAll('[data-theme-setting]').forEach(control => {
+            if (control.type === 'checkbox') {
+                control.checked = isDark;
+            } else {
+                control.value = theme;
+            }
+        });
+    },
+
+    injectThemeToggle() {
+        const actionBar = document.querySelector('.topbar-shell .header-shell > div');
+        if (!actionBar || actionBar.querySelector('[data-theme-toggle]')) return;
+
+        const profileDropdown = actionBar.querySelector('.dropdown');
+        const toggleButton = document.createElement('button');
+        toggleButton.type = 'button';
+        toggleButton.className = 'theme-toggle-btn';
+        toggleButton.setAttribute('data-theme-toggle', 'true');
+        toggleButton.innerHTML = `
+            <i class="fas fa-moon" aria-hidden="true"></i>
+            <span class="theme-toggle-label">Dark mode</span>
+        `;
+
+        if (profileDropdown?.parentNode) {
+            profileDropdown.parentNode.insertBefore(toggleButton, profileDropdown);
+        } else {
+            actionBar.appendChild(toggleButton);
+        }
+    },
+
+    bindThemeControls() {
+        const attachControls = () => {
+            this.injectThemeToggle();
+            this.refreshThemeToggleUI(this.getTheme());
+        };
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', attachControls, { once: true });
+        } else {
+            attachControls();
+        }
+
+        if (document.body?.dataset?.themeBound === 'true') return;
+        if (!document.body) return;
+
+        document.body.dataset.themeBound = 'true';
+
+        document.addEventListener('click', event => {
+            const toggle = event.target.closest('[data-theme-toggle]');
+            if (!toggle) return;
+            event.preventDefault();
+            this.toggleTheme();
+        });
+
+        document.addEventListener('change', event => {
+            const control = event.target.closest('[data-theme-setting]');
+            if (!control) return;
+
+            const nextTheme = control.type === 'checkbox'
+                ? (control.checked ? 'dark' : 'light')
+                : control.value;
+
+            this.updateSettings({ theme: nextTheme });
+        });
     },
 
     getAnalytics() {

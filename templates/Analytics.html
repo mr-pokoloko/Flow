@@ -146,17 +146,21 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="/js/data.js"></script>
     <script>
-        const analyticsPalette = {
-            indigo: '#2b2d42',
-            lavender: '#8d99ae',
-            platinum: '#edf2f4',
-            red: '#ef233c',
-            crimson: '#d80032',
-            redSoft: 'rgba(239, 35, 60, 0.15)',
-            crimsonSoft: 'rgba(216, 0, 50, 0.12)',
-            lavenderSoft: 'rgba(141, 153, 174, 0.14)',
-            indigoSoft: 'rgba(43, 45, 66, 0.14)'
-        };
+        let analyticsPalette = getAnalyticsPalette();
+
+        function getAnalyticsPalette() {
+            return window.FinCastData ? FinCastData.getChartPalette() : {
+                indigo: '#2b2d42',
+                lavender: '#8d99ae',
+                platinum: '#edf2f4',
+                red: '#ef233c',
+                crimson: '#d80032',
+                redSoft: 'rgba(239, 35, 60, 0.15)',
+                crimsonSoft: 'rgba(216, 0, 50, 0.12)',
+                lavenderSoft: 'rgba(141, 153, 174, 0.14)',
+                indigoSoft: 'rgba(43, 45, 66, 0.14)'
+            };
+        }
 
         function toggleSidebar() {
             document.querySelector('.sidebar').classList.toggle('active');
@@ -194,6 +198,7 @@
             document.querySelectorAll('.profile-photo').forEach(target => FinCastData.renderProfilePhoto(target));
             renderNotifications();
             renderAnalytics();
+            applyAnalyticsTheme();
         });
 
         const sharedOptions = {
@@ -288,6 +293,41 @@
             }
         });
 
+        function applyAnalyticsTheme() {
+            analyticsPalette = getAnalyticsPalette();
+
+            categoryBarChart.data.datasets[0].backgroundColor = [
+                analyticsPalette.red,
+                analyticsPalette.crimson,
+                analyticsPalette.lavender,
+                analyticsPalette.indigo,
+                analyticsPalette.redSoft,
+                analyticsPalette.lavenderSoft
+            ];
+            categoryBarChart.options.scales.y.grid.color = analyticsPalette.indigoSoft;
+            categoryBarChart.options.scales.y.ticks.color = analyticsPalette.indigo;
+            categoryBarChart.options.scales.x.ticks.color = analyticsPalette.indigo;
+            categoryBarChart.update();
+
+            monthlyComparisonChart.data.datasets[0].borderColor = analyticsPalette.red;
+            monthlyComparisonChart.data.datasets[0].backgroundColor = analyticsPalette.redSoft;
+            monthlyComparisonChart.data.datasets[1].borderColor = analyticsPalette.lavender;
+            monthlyComparisonChart.data.datasets[1].backgroundColor = analyticsPalette.lavenderSoft;
+            monthlyComparisonChart.options.plugins.legend.labels.color = analyticsPalette.indigo;
+            monthlyComparisonChart.options.scales.y.grid.color = analyticsPalette.indigoSoft;
+            monthlyComparisonChart.options.scales.y.ticks.color = analyticsPalette.indigo;
+            monthlyComparisonChart.options.scales.x.ticks.color = analyticsPalette.indigo;
+            monthlyComparisonChart.update();
+
+            trendChart.data.datasets[0].borderColor = analyticsPalette.crimson;
+            trendChart.data.datasets[0].backgroundColor = analyticsPalette.crimsonSoft;
+            trendChart.data.datasets[0].pointBackgroundColor = analyticsPalette.red;
+            trendChart.options.scales.y.grid.color = analyticsPalette.indigoSoft;
+            trendChart.options.scales.y.ticks.color = analyticsPalette.indigo;
+            trendChart.options.scales.x.ticks.color = analyticsPalette.indigo;
+            trendChart.update();
+        }
+
         function updateChartsWithRealData(analytics) {
             const categoryEntries = Object.entries(analytics.categoryTotals || {});
             const fallbackEntries = [['No spending yet', 0]];
@@ -342,6 +382,10 @@
             document.querySelectorAll('.profile-photo').forEach(target => FinCastData.renderProfilePhoto(target));
             renderNotifications();
             renderAnalytics();
+        });
+
+        window.addEventListener('flow_theme_change', function() {
+            applyAnalyticsTheme();
         });
     </script>
 </body>

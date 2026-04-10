@@ -1,15 +1,7 @@
 let expenses = [];
 let monthlyBudget = 5000;
 
-const appPalette = {
-    indigo: '#2b2d42',
-    lavender: '#8d99ae',
-    red: '#ef233c',
-    crimson: '#d80032',
-    redSoft: 'rgba(239, 35, 60, 0.15)',
-    lavenderSoft: 'rgba(141, 153, 174, 0.18)',
-    indigoSoft: 'rgba(43, 45, 66, 0.14)'
-};
+let appPalette = getThemePalette();
 
 const chartCategoryColors = [
     '#e63946',
@@ -26,6 +18,20 @@ const chartCategoryColors = [
 
 let savingsHistoryYear = new Date().getFullYear();
 
+function getThemePalette() {
+    return window.FinCastData ? FinCastData.getChartPalette() : {
+        indigo: '#2b2d42',
+        lavender: '#8d99ae',
+        red: '#ef233c',
+        crimson: '#d80032',
+        redSoft: 'rgba(239, 35, 60, 0.15)',
+        crimsonSoft: 'rgba(216, 0, 50, 0.12)',
+        lavenderSoft: 'rgba(141, 153, 174, 0.18)',
+        indigoSoft: 'rgba(43, 45, 66, 0.14)',
+        neutral: '#edf2f4'
+    };
+}
+
 document.addEventListener('DOMContentLoaded', async function() {
     if (!window.FinCastData?.requireAuth()) return;
 
@@ -37,6 +43,7 @@ function initializeDashboard() {
     const budget = window.FinCastData ? FinCastData.getBudget() : { monthly: 5000 };
     monthlyBudget = Number(budget.monthly) || 5000;
     createCharts();
+    applyThemeToCharts();
     bindExpenseForm();
     bindSavingsHistory();
     bindSpendingHistory();
@@ -227,6 +234,43 @@ function createCharts() {
                 }
             }
         });
+    }
+}
+
+function applyThemeToCharts() {
+    appPalette = getThemePalette();
+
+    if (window.categoryHistoryChart) {
+        window.categoryHistoryChart.options.plugins.legend.labels.color = appPalette.indigo;
+        window.categoryHistoryChart.data.datasets[0].backgroundColor = window.categoryHistoryChart.data.labels?.[0] === 'No expenses yet'
+            ? [appPalette.lavender]
+            : window.categoryHistoryChart.data.datasets[0].backgroundColor;
+        window.categoryHistoryChart.update();
+    }
+
+    if (window.categoryMonthChart) {
+        window.categoryMonthChart.options.plugins.legend.labels.color = appPalette.indigo;
+        window.categoryMonthChart.data.datasets[0].backgroundColor = window.categoryMonthChart.data.labels?.[0] === 'No expenses yet'
+            ? [appPalette.lavender]
+            : window.categoryMonthChart.data.datasets[0].backgroundColor;
+        window.categoryMonthChart.update();
+    }
+
+    if (window.budgetChart) {
+        window.budgetChart.options.plugins.legend.labels.color = appPalette.indigo;
+        window.budgetChart.data.datasets[0].backgroundColor = [appPalette.red, appPalette.lavender];
+        window.budgetChart.update();
+    }
+
+    if (window.monthlyChart) {
+        window.monthlyChart.data.datasets[0].borderColor = appPalette.red;
+        window.monthlyChart.data.datasets[0].backgroundColor = appPalette.redSoft;
+        window.monthlyChart.data.datasets[0].pointBackgroundColor = appPalette.crimson;
+        window.monthlyChart.data.datasets[0].pointBorderColor = appPalette.crimson;
+        window.monthlyChart.options.scales.x.ticks.color = appPalette.indigo;
+        window.monthlyChart.options.scales.y.ticks.color = appPalette.indigo;
+        window.monthlyChart.options.scales.y.grid.color = appPalette.indigoSoft;
+        window.monthlyChart.update();
     }
 }
 
@@ -819,4 +863,8 @@ window.addEventListener('fincast_data_change', function() {
     loadRecurringExpenses();
     updateNotifications();
     renderProfileName();
+});
+
+window.addEventListener('flow_theme_change', function() {
+    applyThemeToCharts();
 });
