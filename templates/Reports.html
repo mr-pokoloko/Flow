@@ -147,6 +147,10 @@
             };
         }
 
+        function getReportCurrencyCode() {
+            return window.FinCastData ? (FinCastData.getBudget().currency || 'INR') : 'INR';
+        }
+
         function toggleSidebar() {
             document.querySelector('.sidebar').classList.toggle('active');
             document.querySelector('.sidebar-overlay').classList.toggle('active');
@@ -162,19 +166,10 @@
             if (!popupBody || !window.FinCastData) return;
 
             const notifications = FinCastData.getNotifications();
-            popupBody.innerHTML = notifications.map(item => `
-                <div class="notification-popup-item">
-                    <div class="notification-popup-icon"><i class="fas ${item.icon}"></i></div>
-                    <div class="notification-popup-text">
-                        <strong>${item.title}</strong>
-                        <p>${item.body}</p>
-                        <small>${item.meta}</small>
-                    </div>
-                </div>
-            `).join('');
+            popupBody.innerHTML = FinCastData.renderNotificationsMarkup(notifications);
 
-            const hasActionable = notifications.some(item => item.tone !== 'success');
-            dot.style.display = hasActionable ? 'block' : 'none';
+            const hasAttention = FinCastData.hasUnreadAttentionNotifications(notifications);
+            dot.style.display = hasAttention ? 'block' : 'none';
         }
 
         document.addEventListener('DOMContentLoaded', function() {
@@ -222,7 +217,7 @@
                         ticks: {
                             color: reportPalette.indigo,
                             callback: function(value) {
-                                return '\u20B9' + value;
+                                return FinCastData.formatCurrencyCompact(value);
                             }
                         }
                     },
@@ -236,6 +231,8 @@
 
         function applyReportTheme() {
             reportPalette = getReportPalette();
+            yearlyChart.data.datasets[0].label = `Current Year (${getReportCurrencyCode()})`;
+            yearlyChart.data.datasets[1].label = `Previous Year (${getReportCurrencyCode()})`;
             yearlyChart.data.datasets[0].backgroundColor = reportPalette.red;
             yearlyChart.data.datasets[1].backgroundColor = reportPalette.lavender;
             yearlyChart.options.plugins.legend.labels.color = reportPalette.indigo;
@@ -308,12 +305,13 @@
         }
 
         window.addEventListener('fincast_data_change', function(event) {
-            if (['report_created', 'report_deleted', 'expense_added', 'expense_deleted', 'expense_updated', 'expenses_replaced'].includes(event.detail.event)) {
+            if (['report_created', 'report_deleted', 'expense_added', 'expense_deleted', 'expense_updated', 'expenses_replaced', 'budget_updated', 'currency_converted', 'recurring_added', 'recurring_deleted', 'recurring_replaced'].includes(event.detail.event)) {
                 document.getElementById('profileName').textContent = FinCastData.getDisplayName();
                 document.querySelectorAll('.profile-photo').forEach(target => FinCastData.renderProfilePhoto(target));
                 renderNotifications();
                 renderReports();
                 updateYearlyChart();
+                applyReportTheme();
             }
         });
 

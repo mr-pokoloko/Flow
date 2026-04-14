@@ -162,6 +162,10 @@
             };
         }
 
+        function getActiveCurrencyCode() {
+            return window.FinCastData ? (FinCastData.getBudget().currency || 'INR') : 'INR';
+        }
+
         function toggleSidebar() {
             document.querySelector('.sidebar').classList.toggle('active');
             document.querySelector('.sidebar-overlay').classList.toggle('active');
@@ -177,19 +181,10 @@
             if (!popupBody || !window.FinCastData) return;
 
             const notifications = FinCastData.getNotifications();
-            popupBody.innerHTML = notifications.map(item => `
-                <div class="notification-popup-item">
-                    <div class="notification-popup-icon"><i class="fas ${item.icon}"></i></div>
-                    <div class="notification-popup-text">
-                        <strong>${item.title}</strong>
-                        <p>${item.body}</p>
-                        <small>${item.meta}</small>
-                    </div>
-                </div>
-            `).join('');
+            popupBody.innerHTML = FinCastData.renderNotificationsMarkup(notifications);
 
-            const hasActionable = notifications.some(item => item.tone !== 'success');
-            dot.style.display = hasActionable ? 'block' : 'none';
+            const hasAttention = FinCastData.hasUnreadAttentionNotifications(notifications);
+            dot.style.display = hasAttention ? 'block' : 'none';
         }
 
         document.addEventListener('DOMContentLoaded', function() {
@@ -230,7 +225,7 @@
             data: {
                 labels: ['Food', 'Transport', 'Shopping', 'Bills', 'Entertainment', 'Health'],
                 datasets: [{
-                    label: 'Amount (\u20B9)',
+                    label: `Amount (${getActiveCurrencyCode()})`,
                     data: [0, 0, 0, 0, 0, 0],
                     backgroundColor: [
                         analyticsPalette.red,
@@ -304,8 +299,12 @@
                 analyticsPalette.redSoft,
                 analyticsPalette.lavenderSoft
             ];
+            categoryBarChart.data.datasets[0].label = `Amount (${getActiveCurrencyCode()})`;
             categoryBarChart.options.scales.y.grid.color = analyticsPalette.indigoSoft;
             categoryBarChart.options.scales.y.ticks.color = analyticsPalette.indigo;
+            categoryBarChart.options.scales.y.ticks.callback = function(value) {
+                return FinCastData.formatCurrencyCompact(value);
+            };
             categoryBarChart.options.scales.x.ticks.color = analyticsPalette.indigo;
             categoryBarChart.update();
 
@@ -316,6 +315,9 @@
             monthlyComparisonChart.options.plugins.legend.labels.color = analyticsPalette.indigo;
             monthlyComparisonChart.options.scales.y.grid.color = analyticsPalette.indigoSoft;
             monthlyComparisonChart.options.scales.y.ticks.color = analyticsPalette.indigo;
+            monthlyComparisonChart.options.scales.y.ticks.callback = function(value) {
+                return FinCastData.formatCurrencyCompact(value);
+            };
             monthlyComparisonChart.options.scales.x.ticks.color = analyticsPalette.indigo;
             monthlyComparisonChart.update();
 
@@ -324,6 +326,9 @@
             trendChart.data.datasets[0].pointBackgroundColor = analyticsPalette.red;
             trendChart.options.scales.y.grid.color = analyticsPalette.indigoSoft;
             trendChart.options.scales.y.ticks.color = analyticsPalette.indigo;
+            trendChart.options.scales.y.ticks.callback = function(value) {
+                return FinCastData.formatCurrencyCompact(value);
+            };
             trendChart.options.scales.x.ticks.color = analyticsPalette.indigo;
             trendChart.update();
         }
@@ -382,6 +387,7 @@
             document.querySelectorAll('.profile-photo').forEach(target => FinCastData.renderProfilePhoto(target));
             renderNotifications();
             renderAnalytics();
+            applyAnalyticsTheme();
         });
 
         window.addEventListener('flow_theme_change', function() {

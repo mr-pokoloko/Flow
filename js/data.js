@@ -6,6 +6,8 @@ const FINCAST_LEGACY_STORAGE_KEY = 'fincast_expenses';
 const FINCAST_LEGACY_USER_KEY = 'fincast_user_data';
 const FINCAST_LEGACY_BUDGET_KEY = 'fincast_budget';
 const FINCAST_LEGACY_SETTINGS_KEY = 'fincast_settings';
+const FINCAST_CURRENCY_CACHE_KEY = 'fincast_currency_cache_v1';
+const FINCAST_EXCHANGE_API_BASE = 'https://api.frankfurter.dev/v2';
 
 const DEFAULT_BUDGET = {
     monthly: 5000,
@@ -46,6 +48,7 @@ const FinCastData = {
         this.applyTheme(this.getTheme());
         this.bindSignOutLinks();
         this.bindThemeControls();
+        this.bindNotificationControls();
     },
 
     getState() {
@@ -253,21 +256,203 @@ const FinCastData = {
         }
     },
 
-    getCurrencySymbol() {
-        const currency = this.getBudget().currency || 'INR';
-        return {
-            INR: '\u20B9',
-            USD: '$',
-            EUR: '\u20AC',
-            GBP: '\u00A3'
-        }[currency] || '\u20B9';
+    getCurrencySymbol(currencyCode = this.getBudget().currency || 'INR') {
+        const currency = currencyCode || this.getBudget().currency || 'INR';
+        try {
+            const parts = new Intl.NumberFormat('en', {
+                style: 'currency',
+                currency,
+                currencyDisplay: 'symbol'
+            }).formatToParts(1);
+            return parts.find(part => part.type === 'currency')?.value || currency;
+        } catch {
+            return currency;
+        }
     },
 
-    formatCurrency(amount) {
+    formatCurrency(amount, currencyCode = this.getBudget().currency || 'INR') {
         const value = Number(amount) || 0;
-        return `${this.getCurrencySymbol()}${value.toLocaleString('en-IN', {
-            maximumFractionDigits: 2
-        })}`;
+        try {
+            return new Intl.NumberFormat('en', {
+                style: 'currency',
+                currency: currencyCode,
+                maximumFractionDigits: 2
+            }).format(value);
+        } catch {
+            return `${currencyCode} ${value.toLocaleString('en', {
+                maximumFractionDigits: 2
+            })}`;
+        }
+    },
+
+    formatCurrencyCompact(amount, currencyCode = this.getBudget().currency || 'INR') {
+        const formatted = this.formatCurrency(amount, currencyCode);
+        return formatted.replace(/\s/g, '');
+    },
+
+    roundAmount(amount) {
+        return Math.round((Number(amount) || 0) * 100) / 100;
+    },
+
+    getCurrencyDisplayName(code) {
+        try {
+            return new Intl.DisplayNames(['en'], { type: 'currency' }).of(code) || code;
+        } catch {
+            return code;
+        }
+    },
+
+    getFallbackCurrencies() {
+        const codes = typeof Intl.supportedValuesOf === 'function'
+            ? Intl.supportedValuesOf('currency')
+            : ['INR', 'USD', 'EUR', 'GBP', 'JPY', 'AUD', 'CAD', 'CHF', 'CNY', 'SGD', 'AED'];
+
+        return codes.map(code => ({
+            code,
+            name: this.getCurrencyDisplayName(code)
+        }));
+    },
+
+    async getSupportedCurrencies() {
+        const cached = this.safeParse(localStorage.getItem(FINCAST_CURRENCY_CACHE_KEY), null);
+        const cacheAge = Date.now() - Number(cached?.timestamp || 0);
+        const cachedLooksValid = cached?.currencies?.every(item => (
+            item
+            && typeof item.code === 'string'
+            && /^[A-Z]{3}$/.test(item.code)
+            && typeof item.name === 'string'
+        ));
+
+        if (cachedLooksValid && cacheAge < 1000 * 60 * 60 * 24 * 7) {
+            return cached.currencies;
+        }
+
+        try {
+            const response = await fetch(`${FINCAST_EXCHANGE_API_BASE}/currencies`);
+            if (!response.ok) throw new Error('Currency list request failed.');
+            const payload = await response.json();
+            const currencies = Array.isArray(payload)
+                ? payload
+                    .map(item => ({
+                        code: String(item?.iso_code || '').toUpperCase(),
+                        name: item?.name || this.getCurrencyDisplayName(String(item?.iso_code || '').toUpperCase())
+                    }))
+                    .filter(item => /^[A-Z]{3}$/.test(item.code) && item.name)
+                : Object.entries(payload || {})
+                    .map(([code, details]) => ({
+                        code: String(code || '').toUpperCase(),
+                        name: typeof details === 'string'
+                            ? details
+                            : details?.name || this.getCurrencyDisplayName(String(code || '').toUpperCase())
+                    }))
+                    .filter(item => /^[A-Z]{3}$/.test(item.code) && item.name);
+
+            const normalizedCurrencies = currencies
+                .sort((left, right) => left.name.localeCompare(right.name));
+
+            if (normalizedCurrencies.length) {
+                localStorage.setItem(FINCAST_CURRENCY_CACHE_KEY, JSON.stringify({
+                    timestamp: Date.now(),
+                    currencies: normalizedCurrencies
+                }));
+                return normalizedCurrencies;
+            }
+        } catch (error) {
+            console.warn('Unable to load live currency list:', error);
+        }
+
+        return this.getFallbackCurrencies().sort((left, right) => left.name.localeCompare(right.name));
+    },
+
+    async getExchangeRate(fromCurrency, toCurrency) {
+        const from = (fromCurrency || '').toUpperCase();
+        const to = (toCurrency || '').toUpperCase();
+        if (!from || !to) {
+            throw new Error('Both currencies are required for conversion.');
+        }
+        if (from === to) {
+            return {
+                from,
+                to,
+                rate: 1,
+                date: new Date().toISOString().split('T')[0]
+            };
+        }
+
+        const response = await fetch(`${FINCAST_EXCHANGE_API_BASE}/rate/${from}/${to}`);
+        if (!response.ok) {
+            throw new Error(`Unable to fetch live exchange rate for ${from} to ${to}.`);
+        }
+
+        const payload = await response.json();
+        const rate = Number(payload?.rate);
+        if (!rate || Number.isNaN(rate)) {
+            throw new Error(`No valid exchange rate returned for ${from} to ${to}.`);
+        }
+
+        return {
+            from,
+            to,
+            rate,
+            date: payload?.date || new Date().toISOString().split('T')[0]
+        };
+    },
+
+    async convertCurrencyData(targetCurrency, options = {}) {
+        const nextCurrency = (targetCurrency || '').toUpperCase();
+        const username = this.getCurrentUsername();
+        const state = this.getState();
+        const currentBudget = this.getBudget();
+        const currentCurrency = (currentBudget.currency || DEFAULT_BUDGET.currency).toUpperCase();
+        if (!nextCurrency || currentCurrency === nextCurrency) {
+            return {
+                currency: currentCurrency,
+                rate: 1,
+                date: new Date().toISOString().split('T')[0]
+            };
+        }
+
+        const exchange = await this.getExchangeRate(currentCurrency, nextCurrency);
+        const convertAmount = amount => this.roundAmount((Number(amount) || 0) * exchange.rate);
+
+        state.expensesByUser[username] = (state.expensesByUser[username] || []).map(item => ({
+            ...item,
+            amount: convertAmount(item.amount)
+        }));
+
+        state.recurringByUser[username] = (state.recurringByUser[username] || []).map(item => ({
+            ...item,
+            amount: convertAmount(item.amount)
+        }));
+
+        state.budgetsByUser[username] = {
+            ...currentBudget,
+            currency: nextCurrency,
+            monthly: typeof options.budgetOverride === 'number'
+                ? this.roundAmount(options.budgetOverride)
+                : convertAmount(currentBudget.monthly),
+            alertThreshold: Number(options.alertThreshold ?? currentBudget.alertThreshold) || DEFAULT_BUDGET.alertThreshold,
+            autoRenew: Boolean(options.autoRenew ?? currentBudget.autoRenew),
+            renewalDay: Math.min(
+                Math.max(Number(options.renewalDay ?? currentBudget.renewalDay) || 1, 1),
+                31
+            )
+        };
+
+        this.setState(state);
+        this.syncLegacyStorage();
+        this.notifyDataChange('currency_converted', {
+            from: currentCurrency,
+            to: nextCurrency,
+            rate: exchange.rate,
+            date: exchange.date
+        });
+        this.notifyDataChange('budget_updated', state.budgetsByUser[username]);
+
+        return {
+            ...exchange,
+            currency: nextCurrency
+        };
     },
 
     clampRenewalDay(day, year, month) {
@@ -1170,6 +1355,15 @@ const FinCastData = {
         return wrapped;
     },
 
+    escapeHtml(value) {
+        return String(value ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    },
+
     escapePdfText(value) {
         return String(value || '')
             .replace(/\\/g, '\\\\')
@@ -1177,7 +1371,61 @@ const FinCastData = {
             .replace(/\)/g, '\\)');
     },
 
-    getNotifications() {
+    getWeekKey(date = new Date()) {
+        const current = new Date(date);
+        const day = current.getDay();
+        const diff = current.getDate() - day + (day === 0 ? -6 : 1);
+        const monday = new Date(current.setDate(diff));
+        monday.setHours(0, 0, 0, 0);
+        return monday.toISOString().split('T')[0];
+    },
+
+    buildNotificationKey(type, ...parts) {
+        return [type, ...parts]
+            .map(part => String(part ?? '')
+                .trim()
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, '-')
+                .replace(/^-+|-+$/g, ''))
+            .filter(Boolean)
+            .join(':');
+    },
+
+    getNotificationStore() {
+        const username = this.getCurrentUsername();
+        const store = this.getState().notificationsByUser[username];
+        return store && typeof store === 'object' && !Array.isArray(store) ? store : {};
+    },
+
+    saveNotificationStore(store) {
+        const state = this.getState();
+        const username = this.getCurrentUsername();
+        state.notificationsByUser[username] = store;
+        this.setState(state);
+        return store;
+    },
+
+    pruneNotificationStore(activeKeys = []) {
+        const currentStore = this.getNotificationStore();
+        const now = Date.now();
+        const activeKeySet = new Set(activeKeys);
+        const nextStore = Object.fromEntries(
+            Object.entries(currentStore).filter(([key, item]) => {
+                const expiresAt = Number(item?.expiresAt || 0);
+                if (expiresAt && expiresAt <= now) return false;
+                if (!expiresAt && activeKeySet.size > 0 && !activeKeySet.has(key)) return false;
+                return true;
+            })
+        );
+
+        const changed = JSON.stringify(currentStore) !== JSON.stringify(nextStore);
+        if (changed) {
+            this.saveNotificationStore(nextStore);
+        }
+        return nextStore;
+    },
+
+    getRawNotifications() {
         const budget = this.getBudget();
         const settings = this.getSettings();
         const analytics = this.getAnalytics();
@@ -1187,7 +1435,7 @@ const FinCastData = {
 
         if (settings.budgetAlerts && analytics.currentCycleSpent >= thresholdAmount && budget.monthly > 0) {
             notifications.push({
-                id: this.makeId('note'),
+                key: this.buildNotificationKey('budget-watch', analytics.cycleLabel, budget.alertThreshold),
                 icon: 'fa-exclamation-triangle',
                 title: 'Budget watch',
                 body: `You have spent ${this.formatCurrency(analytics.currentCycleSpent)} in the current budget cycle against ${this.formatCurrency(budget.monthly)}.`,
@@ -1211,7 +1459,7 @@ const FinCastData = {
 
             if (nextRecurring) {
                 notifications.push({
-                    id: this.makeId('note'),
+                    key: this.buildNotificationKey('recurring', nextRecurring.id, this.normalizeDateKey(nextRecurring.nextOccurrence)),
                     icon: 'fa-sync-alt',
                     title: 'Recurring charge coming up',
                     body: `${nextRecurring.title} will be added automatically on ${this.formatDate(nextRecurring.nextOccurrence)}.`,
@@ -1223,7 +1471,7 @@ const FinCastData = {
 
         if (settings.weeklySummary && analytics.transactionCount > 0) {
             notifications.push({
-                id: this.makeId('note'),
+                key: this.buildNotificationKey('weekly-summary', this.getWeekKey(), analytics.transactionCount),
                 icon: 'fa-chart-line',
                 title: 'Weekly summary',
                 body: `${analytics.transactionCount} transactions tracked so far with ${analytics.topCategory} leading your spend.`,
@@ -1234,7 +1482,7 @@ const FinCastData = {
 
         if (notifications.length === 0) {
             notifications.push({
-                id: this.makeId('note'),
+                key: this.buildNotificationKey('all-quiet', this.getWeekKey()),
                 icon: 'fa-check-circle',
                 title: 'All quiet',
                 body: 'No urgent alerts right now.',
@@ -1244,6 +1492,134 @@ const FinCastData = {
         }
 
         return notifications;
+    },
+
+    getNotifications() {
+        const notifications = this.getRawNotifications();
+        const store = this.pruneNotificationStore(notifications.map(item => item.key));
+        const now = Date.now();
+
+        return notifications
+            .map(item => {
+                const state = store[item.key] || null;
+                const expiresAt = Number(state?.expiresAt || 0);
+                if (expiresAt && expiresAt <= now) {
+                    return null;
+                }
+
+                return {
+                    ...item,
+                    id: item.key,
+                    read: Boolean(state?.readAt),
+                    readAt: state?.readAt || null,
+                    expiresAt: expiresAt || null
+                };
+            })
+            .filter(Boolean);
+    },
+
+    hasUnreadAttentionNotifications(notifications = this.getNotifications()) {
+        return notifications.some(item => !item.read && (item.tone === 'warning' || item.tone === 'info'));
+    },
+
+    markNotificationRead(key) {
+        if (!key) return false;
+        const store = this.pruneNotificationStore(this.getRawNotifications().map(item => item.key));
+        store[key] = {
+            readAt: new Date().toISOString(),
+            expiresAt: Date.now() + (6 * 60 * 60 * 1000)
+        };
+        this.saveNotificationStore(store);
+        this.notifyDataChange('notifications_updated', { key, action: 'read' });
+        return true;
+    },
+
+    clearNotifications(keys = []) {
+        const activeNotifications = this.getNotifications();
+        const targetKeys = (Array.isArray(keys) && keys.length)
+            ? keys
+            : activeNotifications.map(item => item.key);
+        const store = this.pruneNotificationStore(activeNotifications.map(item => item.key));
+        const nowIso = new Date().toISOString();
+        const expiresAt = Date.now() + (6 * 60 * 60 * 1000);
+
+        targetKeys.forEach(key => {
+            if (!key) return;
+            store[key] = {
+                readAt: nowIso,
+                expiresAt
+            };
+        });
+
+        this.saveNotificationStore(store);
+        this.notifyDataChange('notifications_updated', { action: 'clear_all', keys: targetKeys });
+        return true;
+    },
+
+    renderNotificationsMarkup(notifications = this.getNotifications()) {
+        if (!notifications.length) {
+            return `
+                <div class="empty-state notification-empty-state">
+                    <div class="empty-state-icon"><i class="fas fa-bell-slash"></i></div>
+                    <p class="mb-0">No active notifications</p>
+                </div>
+            `;
+        }
+
+        const hasUnread = notifications.some(item => !item.read);
+        const actionBar = `
+            <div class="notification-actions-bar">
+                <button
+                    type="button"
+                    class="notification-action-btn"
+                    data-notification-clear="all"
+                    ${hasUnread ? '' : 'disabled'}
+                >
+                    Clear all
+                </button>
+            </div>
+        `;
+
+        const items = notifications.map(item => `
+            <div class="notification-popup-item ${item.read ? 'is-read' : ''}">
+                <div class="notification-popup-icon"><i class="fas ${this.escapeHtml(item.icon)}"></i></div>
+                <div class="notification-popup-text">
+                    <h6>${this.escapeHtml(item.title)}</h6>
+                    <p>${this.escapeHtml(item.body)}</p>
+                    <small>${this.escapeHtml(item.meta)}</small>
+                </div>
+                <div class="notification-item-actions">
+                    ${item.read
+                        ? `<span class="notification-read-status">Read</span>
+                           <small class="notification-read-meta">Removes in 6h</small>`
+                        : `<button type="button" class="notification-action-btn" data-notification-read="${this.escapeHtml(item.key)}">Mark as read</button>`
+                    }
+                </div>
+            </div>
+        `).join('');
+
+        return `${actionBar}${items}`;
+    },
+
+    bindNotificationControls() {
+        if (document.body?.dataset?.notificationsBound === 'true') return;
+        if (!document.body) return;
+
+        document.body.dataset.notificationsBound = 'true';
+        document.addEventListener('click', event => {
+            const readButton = event.target.closest('[data-notification-read]');
+            if (readButton) {
+                event.preventDefault();
+                this.markNotificationRead(readButton.getAttribute('data-notification-read'));
+                return;
+            }
+
+            const clearButton = event.target.closest('[data-notification-clear]');
+            if (clearButton) {
+                event.preventDefault();
+                this.clearNotifications();
+            }
+        });
     },
 
     clearAllUserData() {

@@ -129,7 +129,7 @@
                             <div class="mb-3">
                                 <label for="monthlyBudget">Monthly Budget</label>
                                 <div class="input-group">
-                                    <span class="input-group-text">&#8377;</span>
+                                    <span class="input-group-text" id="budgetCurrencySymbol">&#8377;</span>
                                     <input type="number" id="monthlyBudget" name="budget" class="form-control" value="5000">
                                 </div>
                             </div>
@@ -144,12 +144,7 @@
                             </div>
                             <div class="mb-3">
                                 <label for="currencySelect">Currency</label>
-                                <select id="currencySelect" class="form-select">
-                                    <option value="INR" selected>Indian Rupee (&#8377;)</option>
-                                    <option value="USD">US Dollar ($)</option>
-                                    <option value="EUR">Euro (&#8364;)</option>
-                                    <option value="GBP">British Pound (&pound;)</option>
-                                </select>
+                                <select id="currencySelect" class="form-select"></select>
                             </div>
                             <div class="switch-row pt-0">
                                 <input class="form-check-input" id="autoRenewBudget" type="checkbox">
@@ -234,19 +229,10 @@
             if (!popupBody || !window.FinCastData) return;
 
             const notifications = FinCastData.getNotifications();
-            popupBody.innerHTML = notifications.map(item => `
-                <div class="notification-popup-item">
-                    <div class="notification-popup-icon"><i class="fas ${item.icon}"></i></div>
-                    <div class="notification-popup-text">
-                        <strong>${item.title}</strong>
-                        <p>${item.body}</p>
-                        <small>${item.meta}</small>
-                    </div>
-                </div>
-            `).join('');
+            popupBody.innerHTML = FinCastData.renderNotificationsMarkup(notifications);
 
-            const hasActionable = notifications.some(item => item.tone !== 'success');
-            dot.style.display = hasActionable ? 'block' : 'none';
+            const hasAttention = FinCastData.hasUnreadAttentionNotifications(notifications);
+            dot.style.display = hasAttention ? 'block' : 'none';
         }
 
         function clearAllData() {
@@ -269,32 +255,72 @@
             alert('Profile updated successfully!');
         }
 
-        function saveBudget(e) {
+        function updateBudgetCurrencySymbol(currencyCode) {
+            document.getElementById('budgetCurrencySymbol').textContent = FinCastData.getCurrencySymbol(currencyCode);
+        }
+
+        async function populateCurrencyOptions() {
+            const budget = FinCastData.getBudget();
+            const currencySelect = document.getElementById('currencySelect');
+            const currencies = await FinCastData.getSupportedCurrencies();
+
+            currencySelect.innerHTML = currencies.map(item => {
+                const selected = item.code === (budget.currency || 'INR') ? ' selected' : '';
+                return `<option value="${item.code}"${selected}>${item.name} (${item.code})</option>`;
+            }).join('');
+
+            currencySelect.value = budget.currency || 'INR';
+            updateBudgetCurrencySymbol(currencySelect.value);
+        }
+
+        async function saveBudget(e) {
             e.preventDefault();
             const budgetValue = Number(document.getElementById('monthlyBudget').value) || 0;
             const thresholdValue = Number(document.getElementById('budgetAlertThreshold').value);
             const currencyValue = document.getElementById('currencySelect').value;
             const autoRenewValue = document.getElementById('autoRenewBudget').checked;
             const renewalDayValue = Number(document.getElementById('budgetRenewalDay').value) || 1;
-
-            FinCastData.updateBudget({
-                monthly: budgetValue,
-                alertThreshold: thresholdValue,
-                currency: currencyValue,
-                autoRenew: autoRenewValue,
-                renewalDay: renewalDayValue
-            });
-            FinCastData.allowRemoteSync();
-
+            const currentBudget = FinCastData.getBudget();
             const btn = e.currentTarget.querySelector('button[type="submit"]');
             const originalText = btn.innerHTML;
-            btn.innerHTML = '<i class="fas fa-check"></i> Budget Saved!';
-            btn.classList.add('btn-success');
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+            btn.disabled = true;
 
-            setTimeout(() => {
+            try {
+                if ((currentBudget.currency || 'INR') !== currencyValue) {
+                    const keepTypedBudget = Math.abs(budgetValue - Number(currentBudget.monthly || 0)) >= 0.01;
+                    const conversion = await FinCastData.convertCurrencyData(currencyValue, {
+                        budgetOverride: keepTypedBudget ? budgetValue : undefined,
+                        alertThreshold: thresholdValue,
+                        autoRenew: autoRenewValue,
+                        renewalDay: renewalDayValue
+                    });
+                    document.getElementById('monthlyBudget').value = FinCastData.getBudget().monthly;
+                    updateBudgetCurrencySymbol(currencyValue);
+                    alert(`Currency updated from ${conversion.from} to ${conversion.to} using a live exchange rate of ${conversion.rate} on ${conversion.date}.`);
+                } else {
+                    FinCastData.updateBudget({
+                        monthly: budgetValue,
+                        alertThreshold: thresholdValue,
+                        currency: currencyValue,
+                        autoRenew: autoRenewValue,
+                        renewalDay: renewalDayValue
+                    });
+                }
+
+                FinCastData.allowRemoteSync();
+                btn.innerHTML = '<i class="fas fa-check"></i> Budget Saved!';
+                btn.classList.add('btn-success');
+            } catch (error) {
+                alert(error.message || 'Unable to update budget and currency right now.');
                 btn.innerHTML = originalText;
-                btn.classList.remove('btn-success');
-            }, 1800);
+            } finally {
+                btn.disabled = false;
+                setTimeout(() => {
+                    btn.innerHTML = originalText;
+                    btn.classList.remove('btn-success');
+                }, 1800);
+            }
         }
 
         async function saveSecurity(e) {
@@ -362,6 +388,7 @@
             document.getElementById('monthlyBudget').value = budget.monthly || 5000;
             document.getElementById('budgetAlertThreshold').value = String(budget.alertThreshold || 80);
             document.getElementById('currencySelect').value = budget.currency || 'INR';
+            updateBudgetCurrencySymbol(budget.currency || 'INR');
             document.getElementById('autoRenewBudget').checked = Boolean(budget.autoRenew);
             document.getElementById('budgetRenewalDay').value = budget.renewalDay || 1;
             syncRenewalFieldState();
@@ -395,8 +422,9 @@
             reader.readAsDataURL(file);
         }
 
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', async function() {
             if (!window.FinCastData?.requireAuth()) return;
+            await populateCurrencyOptions();
             populateSettingsPage();
             renderNotifications();
 
@@ -406,16 +434,20 @@
             document.getElementById('deleteAccountBtn').addEventListener('click', deleteAccount);
             document.getElementById('autoRenewBudget').addEventListener('change', syncRenewalFieldState);
             document.getElementById('profileImageUpload').addEventListener('change', handleProfileImageUpload);
+            document.getElementById('currencySelect').addEventListener('change', function(event) {
+                updateBudgetCurrencySymbol(event.target.value);
+            });
             ['budgetAlerts', 'weeklySummary', 'largeExpenseAlerts', 'billReminders', 'twoFactor'].forEach(id => {
                 document.getElementById(id).addEventListener('change', saveNotificationSettings);
             });
         });
 
         window.addEventListener('fincast_data_change', function(event) {
-            if (event.detail.event === 'user_updated') {
+            if (['user_updated', 'budget_updated', 'currency_converted'].includes(event.detail.event)) {
                 document.getElementById('profileName').textContent = FinCastData.getDisplayName();
                 document.querySelectorAll('.profile-photo').forEach(target => FinCastData.renderProfilePhoto(target));
                 renderNotifications();
+                populateSettingsPage();
             }
         });
     </script>

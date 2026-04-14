@@ -185,19 +185,10 @@
             if (!popupBody || !window.FinCastData) return;
 
             const notifications = FinCastData.getNotifications();
-            popupBody.innerHTML = notifications.map(item => `
-                <div class="notification-popup-item">
-                    <div class="notification-popup-icon"><i class="fas ${item.icon}"></i></div>
-                    <div class="notification-popup-text">
-                        <strong>${item.title}</strong>
-                        <p>${item.body}</p>
-                        <small>${item.meta}</small>
-                    </div>
-                </div>
-            `).join('');
+            popupBody.innerHTML = FinCastData.renderNotificationsMarkup(notifications);
 
-            const hasActionable = notifications.some(item => item.tone !== 'success');
-            dot.style.display = hasActionable ? 'block' : 'none';
+            const hasAttention = FinCastData.hasUnreadAttentionNotifications(notifications);
+            dot.style.display = hasAttention ? 'block' : 'none';
         }
 
         document.addEventListener('DOMContentLoaded', function() {

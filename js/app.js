@@ -692,19 +692,10 @@ function updateNotifications() {
     if (!popupBody || !window.FinCastData) return;
 
     const notifications = FinCastData.getNotifications();
-    popupBody.innerHTML = notifications.map(item => `
-        <div class="notification-popup-item">
-            <div class="notification-popup-icon"><i class="fas ${item.icon}"></i></div>
-            <div class="notification-popup-text">
-                <h6>${escapeHtml(item.title)}</h6>
-                <p>${escapeHtml(item.body)}</p>
-                <small>${escapeHtml(item.meta)}</small>
-            </div>
-        </div>
-    `).join('');
+    popupBody.innerHTML = FinCastData.renderNotificationsMarkup(notifications);
 
     if (dot) {
-        const hasAttention = notifications.some(item => item.tone === 'warning' || item.tone === 'info');
+        const hasAttention = FinCastData.hasUnreadAttentionNotifications(notifications);
         dot.style.display = hasAttention ? 'block' : 'none';
     }
 }
@@ -838,7 +829,9 @@ function renderSavingsHistoryPopup() {
 }
 
 function formatCurrency(amount) {
-    return window.FinCastData ? FinCastData.formatCurrency(amount) : `₹${Number(amount || 0)}`;
+    return window.FinCastData
+        ? FinCastData.formatCurrency(amount)
+        : `INR ${Number(amount || 0).toLocaleString('en', { maximumFractionDigits: 2 })}`;
 }
 
 function formatDate(value) {

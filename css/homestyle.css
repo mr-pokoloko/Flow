@@ -27,6 +27,7 @@ body {
         radial-gradient(circle at right 80%, rgba(43, 45, 66, 0.1), transparent 26%),
         var(--platinum);
     line-height: 1.6;
+    overflow-x: hidden;
 }
 
 a {
@@ -63,6 +64,14 @@ nav.scrolled {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 20px;
+}
+
+.nav-menu {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex: 1;
     gap: 20px;
 }
 
@@ -106,6 +115,30 @@ nav.scrolled {
 
 .nav-links a:hover {
     color: var(--punch-red);
+}
+
+.nav-toggle {
+    display: none;
+    width: 50px;
+    height: 50px;
+    border: 1px solid rgba(43, 45, 66, 0.12);
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.74);
+    box-shadow: 0 14px 28px rgba(43, 45, 66, 0.08);
+    cursor: pointer;
+}
+
+.nav-toggle span {
+    display: block;
+    width: 20px;
+    height: 2px;
+    margin: 0 auto;
+    background: var(--space-indigo);
+    border-radius: 999px;
+}
+
+.nav-toggle span + span {
+    margin-top: 5px;
 }
 
 .btn-login,
@@ -218,12 +251,13 @@ nav.scrolled {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 16px;
     margin-top: 42px;
+    align-items: stretch;
 }
 
 .hero-stat {
     padding: 18px;
     width: 100%;
-    max-width: 320px;
+    max-width: 100%;
     border-radius: 22px;
     background: rgba(255, 255, 255, 0.76);
     border: 1px solid var(--border);
@@ -270,7 +304,7 @@ nav.scrolled {
 .step-card {
     padding: 28px;
     width: 100%;
-    max-width: 360px;
+    max-width: 100%;
     border-radius: 26px;
     background: rgba(255, 255, 255, 0.8);
     border: 1px solid var(--border);
@@ -281,7 +315,7 @@ nav.scrolled {
 .hero-stats > *,
 .features-grid > *,
 .steps-grid > * {
-    justify-self: center;
+    justify-self: stretch;
 }
 
 .feature-card:hover,
@@ -420,12 +454,11 @@ footer {
 
 @media (max-width: 900px) {
     .nav-container {
-        flex-wrap: wrap;
-        justify-content: center;
+        gap: 16px;
     }
 
     .hero {
-        padding-top: 152px;
+        padding-top: 136px;
     }
 
     .hero-stats {
@@ -450,12 +483,57 @@ footer {
         padding-right: 16px;
     }
 
+    nav {
+        padding-top: 14px;
+        padding-bottom: 14px;
+    }
+
+    .nav-container {
+        align-items: flex-start;
+        flex-wrap: wrap;
+    }
+
+    .nav-toggle {
+        display: block;
+        margin-left: auto;
+        flex-shrink: 0;
+    }
+
+    .nav-menu {
+        display: none;
+        width: 100%;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 16px;
+        margin-top: 14px;
+        padding: 16px;
+        border-radius: 22px;
+        background: rgba(255, 255, 255, 0.84);
+        border: 1px solid rgba(43, 45, 66, 0.08);
+        box-shadow: 0 18px 40px rgba(43, 45, 66, 0.1);
+    }
+
+    .nav-menu.open {
+        display: flex;
+    }
+
     .nav-links,
     .hero-buttons,
     .cta-buttons,
     .nav-buttons {
         flex-direction: column;
         width: 100%;
+        align-items: stretch;
+    }
+
+    .nav-links {
+        gap: 6px;
+    }
+
+    .nav-links a {
+        padding: 12px 14px;
+        border-radius: 14px;
+        background: rgba(141, 153, 174, 0.08);
     }
 
     .btn-login,
@@ -473,7 +551,7 @@ footer {
 
     .hero {
         min-height: auto;
-        padding-top: 184px;
+        padding-top: 120px;
         padding-bottom: 48px;
     }
 
@@ -481,12 +559,22 @@ footer {
         min-height: auto;
     }
 
-    .nav-links {
-        gap: 10px;
+    .hero-content,
+    .hero-content p {
+        max-width: 100%;
+    }
+
+    .hero-buttons,
+    .cta-buttons {
+        gap: 12px;
     }
 
     .features-grid,
     .steps-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .footer-container {
         grid-template-columns: 1fr;
     }
 }
@@ -497,7 +585,7 @@ footer {
     }
 
     .hero {
-        padding-top: 206px;
+        padding-top: 112px;
     }
 
     .eyebrow {
@@ -509,5 +597,16 @@ footer {
     .section-subtitle,
     .cta-section p {
         font-size: 0.96rem;
+    }
+
+    .hero-content h1 {
+        font-size: clamp(2.35rem, 12vw, 3.2rem);
+    }
+
+    .hero-stat,
+    .feature-card,
+    .step-card {
+        padding: 22px;
+        border-radius: 22px;
     }
 }

@@ -1232,6 +1232,69 @@ label,
     align-items: flex-start;
 }
 
+.notification-actions-bar {
+    display: flex;
+    justify-content: flex-end;
+    padding: 12px 20px 0;
+}
+
+.notification-item-actions {
+    display: grid;
+    gap: 6px;
+    justify-items: end;
+    min-width: 92px;
+    margin-left: auto;
+    text-align: right;
+}
+
+.notification-action-btn {
+    min-height: 34px;
+    padding: 7px 12px;
+    border: 1px solid rgba(141, 153, 174, 0.2);
+    border-radius: 12px;
+    background: rgba(141, 153, 174, 0.1);
+    color: var(--space-indigo);
+    font-size: 0.78rem;
+    font-weight: 700;
+    transition: 0.2s ease;
+}
+
+.notification-action-btn:hover:not(:disabled) {
+    background: rgba(141, 153, 174, 0.16);
+}
+
+.notification-action-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.notification-popup-item.is-read {
+    opacity: 0.74;
+}
+
+.notification-read-status {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 30px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: rgba(141, 153, 174, 0.12);
+    color: var(--lavender-grey);
+    font-size: 0.76rem;
+    font-weight: 800;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+}
+
+.notification-read-meta {
+    color: rgba(43, 45, 66, 0.5);
+}
+
+.notification-empty-state {
+    min-height: 180px;
+}
+
 .notification-popup-item + .notification-popup-item {
     border-top: 1px solid rgba(141, 153, 174, 0.14);
 }
@@ -1821,6 +1884,25 @@ canvas {
 
 [data-theme="dark"] .empty-state {
     color: rgba(226, 232, 240, 0.72);
+}
+
+[data-theme="dark"] .notification-action-btn {
+    background: rgba(148, 163, 184, 0.12);
+    border-color: rgba(148, 163, 184, 0.18);
+    color: #f8fafc;
+}
+
+[data-theme="dark"] .notification-action-btn:hover:not(:disabled) {
+    background: rgba(148, 163, 184, 0.18);
+}
+
+[data-theme="dark"] .notification-read-status {
+    background: rgba(148, 163, 184, 0.12);
+    color: rgba(226, 232, 240, 0.78);
+}
+
+[data-theme="dark"] .notification-read-meta {
+    color: rgba(226, 232, 240, 0.58);
 }
 
 [data-theme="dark"] .category-badge,
