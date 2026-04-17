@@ -10,6 +10,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="/css/styles.css">
+    <link rel="stylesheet" href="/css/chatbot.css">
 </head>
 <body>
     <button class="sidebar-toggle" onclick="toggleSidebar()" aria-label="Toggle sidebar"><i class="fas fa-bars"></i></button>
@@ -108,6 +109,42 @@
                     </div>
                 </div>
             </div>
+
+            <div class="card shadow p-4 mt-4">
+                <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-4">
+                    <div>
+                        <h5 class="mb-1"><i class="fas fa-globe-americas section-icon"></i> Live Exchange Comparison</h5>
+                        <p class="muted-copy mb-0">Compare live exchange rates across three currencies you choose.</p>
+                    </div>
+                    <button type="button" class="btn btn-outline-secondary btn-sm align-self-start align-self-lg-center" id="refreshExchangeComparisonBtn">
+                        <i class="fas fa-rotate-right"></i> Refresh Rates
+                    </button>
+                </div>
+
+                <div class="row g-3 mb-4">
+                    <div class="col-md-4">
+                        <div class="soft-panel h-100">
+                            <label for="exchangeCurrencyOne" class="muted-copy d-block mb-2">Currency 1</label>
+                            <select id="exchangeCurrencyOne" class="form-select"></select>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="soft-panel h-100">
+                            <label for="exchangeCurrencyTwo" class="muted-copy d-block mb-2">Currency 2</label>
+                            <select id="exchangeCurrencyTwo" class="form-select"></select>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="soft-panel h-100">
+                            <label for="exchangeCurrencyThree" class="muted-copy d-block mb-2">Currency 3</label>
+                            <select id="exchangeCurrencyThree" class="form-select"></select>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="exchangeComparisonStatus" class="muted-copy mb-3">Loading currency options...</div>
+                <div class="row g-3" id="exchangeComparisonGrid"></div>
+            </div>
         </div>
     </div>
 
@@ -123,7 +160,11 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="/js/data.js"></script>
+    <script src="/js/chatbot.js"></script>
     <script>
+        const PROFILE_EXCHANGE_STORAGE_KEY = 'fincast_profile_exchange_compare_v1';
+        let exchangeComparisonCurrencies = [];
+
         function toggleSidebar() {
             document.querySelector('.sidebar').classList.toggle('active');
             document.querySelector('.sidebar-overlay').classList.toggle('active');
@@ -145,6 +186,137 @@
             dot.style.display = hasAttention ? 'block' : 'none';
         }
 
+        function getDefaultExchangeSelections() {
+            const budgetCurrency = FinCastData.getBudget().currency || 'INR';
+            const defaults = [budgetCurrency, 'USD', 'EUR'];
+            return [...new Set(defaults)].slice(0, 3);
+        }
+
+        function getSavedExchangeSelections() {
+            try {
+                const saved = JSON.parse(localStorage.getItem(PROFILE_EXCHANGE_STORAGE_KEY) || '[]');
+                return Array.isArray(saved) ? saved.filter(code => typeof code === 'string') : [];
+            } catch {
+                return [];
+            }
+        }
+
+        function saveExchangeSelections(values) {
+            localStorage.setItem(PROFILE_EXCHANGE_STORAGE_KEY, JSON.stringify(values));
+        }
+
+        function getExchangeCurrencyName(code) {
+            return exchangeComparisonCurrencies.find(item => item.code === code)?.name || code;
+        }
+
+        function renderExchangeComparisonCards(cards) {
+            const grid = document.getElementById('exchangeComparisonGrid');
+            if (!grid) return;
+
+            grid.innerHTML = cards.map(card => `
+                <div class="col-lg-4 col-md-6">
+                    <div class="soft-panel h-100">
+                        <small class="muted-copy d-block mb-2">${card.baseName}</small>
+                        <h4 class="mb-3">${card.baseCode}</h4>
+                        <div class="d-flex flex-column gap-2">
+                            ${card.rates.map(rate => `
+                                <div class="d-flex justify-content-between align-items-start gap-3">
+                                    <div>
+                                        <strong>${rate.targetCode}</strong>
+                                        <div class="muted-copy">${rate.targetName}</div>
+                                    </div>
+                                    <div class="text-end">
+                                        <strong>${rate.value}</strong>
+                                        <div class="muted-copy">for 1 ${card.baseCode}</div>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function updateExchangeComparison() {
+            const status = document.getElementById('exchangeComparisonStatus');
+            const selects = [
+                document.getElementById('exchangeCurrencyOne'),
+                document.getElementById('exchangeCurrencyTwo'),
+                document.getElementById('exchangeCurrencyThree')
+            ];
+            if (!status || selects.some(select => !select)) return;
+
+            const selectedCodes = selects.map(select => select.value);
+            saveExchangeSelections(selectedCodes);
+
+            if (new Set(selectedCodes).size < 3) {
+                status.textContent = 'Choose three different currencies to compare live exchange rates.';
+                renderExchangeComparisonCards([]);
+                return;
+            }
+
+            status.textContent = 'Loading live exchange rates...';
+
+            try {
+                const cards = await Promise.all(selectedCodes.map(async baseCode => {
+                    const targets = selectedCodes.filter(code => code !== baseCode);
+                    const rates = await Promise.all(targets.map(async targetCode => {
+                        const exchange = await FinCastData.getExchangeRate(baseCode, targetCode);
+                        return {
+                            targetCode,
+                            targetName: getExchangeCurrencyName(targetCode),
+                            value: Number(exchange.rate).toFixed(4),
+                            date: exchange.date
+                        };
+                    }));
+
+                    return {
+                        baseCode,
+                        baseName: getExchangeCurrencyName(baseCode),
+                        rates,
+                        date: rates[0]?.date || new Date().toISOString().split('T')[0]
+                    };
+                }));
+
+                renderExchangeComparisonCards(cards);
+                const latestDate = cards[0]?.date || new Date().toISOString().split('T')[0];
+                status.textContent = `Live rates updated for ${latestDate}.`;
+            } catch (error) {
+                renderExchangeComparisonCards([]);
+                status.textContent = error.message || 'Unable to load live exchange rates right now.';
+            }
+        }
+
+        async function initializeExchangeComparison() {
+            const selects = [
+                document.getElementById('exchangeCurrencyOne'),
+                document.getElementById('exchangeCurrencyTwo'),
+                document.getElementById('exchangeCurrencyThree')
+            ];
+            const refreshButton = document.getElementById('refreshExchangeComparisonBtn');
+            if (selects.some(select => !select) || !refreshButton) return;
+
+            exchangeComparisonCurrencies = await FinCastData.getSupportedCurrencies();
+            const preferred = [...getSavedExchangeSelections(), ...getDefaultExchangeSelections()];
+            const uniquePreferred = [...new Set(preferred)].slice(0, 3);
+            const safeDefaults = uniquePreferred.length === 3
+                ? uniquePreferred
+                : exchangeComparisonCurrencies.slice(0, 3).map(item => item.code);
+
+            const optionsMarkup = exchangeComparisonCurrencies.map(item => `
+                <option value="${item.code}">${item.code} - ${item.name}</option>
+            `).join('');
+
+            selects.forEach((select, index) => {
+                select.innerHTML = optionsMarkup;
+                select.value = safeDefaults[index] || exchangeComparisonCurrencies[index]?.code || 'USD';
+                select.addEventListener('change', updateExchangeComparison);
+            });
+
+            refreshButton.addEventListener('click', updateExchangeComparison);
+            await updateExchangeComparison();
+        }
+
         document.addEventListener('DOMContentLoaded', function() {
             if (!window.FinCastData?.requireAuth()) return;
             const user = FinCastData.getCurrentUser();
@@ -161,6 +333,8 @@
             document.querySelectorAll('.profile-photo').forEach(target => {
                 FinCastData.renderProfilePhoto(target);
             });
+
+            initializeExchangeComparison();
         });
 
         window.addEventListener('fincast_data_change', function() {
