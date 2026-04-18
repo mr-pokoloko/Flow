@@ -268,8 +268,22 @@
 
         function deleteExpense(id) {
             if (!confirm('Are you sure you want to delete this expense?')) return;
-            FinCastData.deleteExpense(id);
+
+            const deletedExpense = FinCastData.deleteExpense(id);
+            if (!deletedExpense) return;
+
             loadTransactions();
+
+            if (window.FlowUndo) {
+                FlowUndo.show({
+                    message: `${deletedExpense.name || 'Expense'} deleted.`,
+                    detail: 'Undo restores the transaction to your list.',
+                    onUndo: () => {
+                        FinCastData.restoreExpense(deletedExpense);
+                        loadTransactions();
+                    }
+                });
+            }
         }
 
         function editExpense(id) {

@@ -89,15 +89,48 @@
 
     function getHistory() {
         try {
-            const value = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-            return Array.isArray(value) ? value : [];
+            const stored = localStorage.getItem(STORAGE_KEY);
+            if (!stored) return [];
+
+            const data = JSON.parse(stored);
+            
+            // Handle old format (just an array)
+            if (Array.isArray(data)) {
+                // Convert old format to new format
+                const newData = {
+                    history: data,
+                    timestamp: Date.now()
+                };
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(newData));
+                return data;
+            }
+            
+            // Handle new format
+            if (!data || typeof data !== 'object') return [];
+            const { history, timestamp } = data;
+            if (!Array.isArray(history)) return [];
+
+            // Check if 24 hours have passed since last save
+            const now = Date.now();
+            const twentyFourHours = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+            if (timestamp && (now - timestamp) > twentyFourHours) {
+                // Clear expired history
+                localStorage.removeItem(STORAGE_KEY);
+                return [];
+            }
+
+            return history;
         } catch {
             return [];
         }
     }
 
     function saveHistory(history) {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(history.slice(-24)));
+        const data = {
+            history: history.slice(-24),
+            timestamp: Date.now()
+        };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     }
 
     function escapeHtml(value) {
@@ -134,18 +167,6 @@
         root.className = 'flow-chatbot';
         root.innerHTML = `
             <div class="flow-chatbot-panel" aria-live="polite">
-                <div class="flow-chatbot-header">
-                    <div class="flow-chatbot-title">
-                        <div class="flow-chatbot-badge"><i class="fas fa-sparkles"></i></div>
-                        <div>
-                            <h3>Flow AI Assistant</h3>
-                            <p>${escapeHtml(pageConfig.intro)}</p>
-                        </div>
-                    </div>
-                    <button type="button" class="flow-chatbot-close" aria-label="Close chat">
-                        <i class="fas fa-times"></i>
-                    </button>
-                </div>
                 <div class="flow-chatbot-messages"></div>
                 <div class="flow-chatbot-suggestions"></div>
                 <form class="flow-chatbot-form">
@@ -238,7 +259,6 @@
         const pageConfig = getPageConfig();
         const root = createWidget(pageConfig);
         const toggle = root.querySelector('.flow-chatbot-toggle');
-        const close = root.querySelector('.flow-chatbot-close');
         const messages = root.querySelector('.flow-chatbot-messages');
         const suggestions = root.querySelector('.flow-chatbot-suggestions');
         const form = root.querySelector('.flow-chatbot-form');
@@ -265,10 +285,6 @@
                 input.focus();
                 messages.scrollTop = messages.scrollHeight;
             }
-        });
-
-        close.addEventListener('click', function() {
-            root.classList.remove('open');
         });
 
         suggestions.querySelectorAll('.flow-chatbot-suggestion').forEach(button => {

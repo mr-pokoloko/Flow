@@ -796,11 +796,49 @@ const FinCastData = {
         const state = this.getState();
         const username = this.getCurrentUsername();
         const expenses = state.expensesByUser[username] || [];
-        state.expensesByUser[username] = expenses.filter(item => String(item.id) !== String(id));
+        const index = expenses.findIndex(item => String(item.id) === String(id));
+        if (index === -1) return null;
+
+        const [deletedExpense] = expenses.splice(index, 1);
         this.setState(state);
         this.syncLegacyStorage();
-        this.notifyDataChange('expense_deleted', { id });
-        return true;
+        this.notifyDataChange('expense_deleted', { id, expense: deletedExpense, index });
+        return {
+            ...deletedExpense,
+            _restoreIndex: index
+        };
+    },
+
+    restoreExpense(expense) {
+        if (!expense || !expense.id) return null;
+
+        const state = this.getState();
+        const username = this.getCurrentUsername();
+        const expenses = state.expensesByUser[username] || [];
+        if (expenses.some(item => String(item.id) === String(expense.id))) {
+            return expense;
+        }
+
+        const restoreIndex = Math.min(
+            Math.max(Number(expense._restoreIndex ?? expenses.length), 0),
+            expenses.length
+        );
+        const restoredExpense = {
+            id: expense.id,
+            name: expense.name || expense.title || 'Untitled expense',
+            amount: Number(expense.amount) || 0,
+            category: expense.category || 'Other',
+            date: expense.date || new Date().toISOString().split('T')[0],
+            recurringId: expense.recurringId || null,
+            sourceType: expense.sourceType || 'manual',
+            scheduleKey: expense.scheduleKey || null
+        };
+
+        expenses.splice(restoreIndex, 0, restoredExpense);
+        this.setState(state);
+        this.syncLegacyStorage();
+        this.notifyDataChange('expense_restored', { expense: restoredExpense, index: restoreIndex });
+        return restoredExpense;
     },
 
     getRecurringExpenses() {
@@ -835,10 +873,39 @@ const FinCastData = {
     deleteRecurringExpense(id) {
         const state = this.getState();
         const username = this.getCurrentUsername();
-        state.recurringByUser[username] = (state.recurringByUser[username] || []).filter(item => String(item.id) !== String(id));
+        const recurring = state.recurringByUser[username] || [];
+        const index = recurring.findIndex(item => String(item.id) === String(id));
+        if (index === -1) return null;
+
+        const [deletedRecurring] = recurring.splice(index, 1);
         this.setState(state);
-        this.notifyDataChange('recurring_deleted', { id });
-        return true;
+        this.notifyDataChange('recurring_deleted', { id, recurring: deletedRecurring, index });
+        return {
+            ...deletedRecurring,
+            _restoreIndex: index
+        };
+    },
+
+    restoreRecurringExpense(item) {
+        if (!item || !item.id) return null;
+
+        const state = this.getState();
+        const username = this.getCurrentUsername();
+        const recurring = state.recurringByUser[username] || [];
+        if (recurring.some(existing => String(existing.id) === String(item.id))) {
+            return item;
+        }
+
+        const restoreIndex = Math.min(
+            Math.max(Number(item._restoreIndex ?? recurring.length), 0),
+            recurring.length
+        );
+        const restoredRecurring = this.normalizeRecurringItem(item);
+        recurring.splice(restoreIndex, 0, restoredRecurring);
+        this.setState(state);
+        this.ensureRecurringExpenseHistory();
+        this.notifyDataChange('recurring_restored', { recurring: restoredRecurring, index: restoreIndex });
+        return restoredRecurring;
     },
 
     getUserData() {
@@ -1258,10 +1325,41 @@ const FinCastData = {
     deleteReport(id) {
         const state = this.getState();
         const username = this.getCurrentUsername();
-        state.reportsByUser[username] = (state.reportsByUser[username] || []).filter(report => String(report.id) !== String(id));
+        const reports = state.reportsByUser[username] || [];
+        const index = reports.findIndex(report => String(report.id) === String(id));
+        if (index === -1) return null;
+
+        const [deletedReport] = reports.splice(index, 1);
         this.setState(state);
-        this.notifyDataChange('report_deleted', { id });
-        return true;
+        this.notifyDataChange('report_deleted', { id, report: deletedReport, index });
+        return {
+            ...deletedReport,
+            _restoreIndex: index
+        };
+    },
+
+    restoreReport(report) {
+        if (!report || !report.id) return null;
+
+        const state = this.getState();
+        const username = this.getCurrentUsername();
+        const reports = state.reportsByUser[username] || [];
+        if (reports.some(item => String(item.id) === String(report.id))) {
+            return report;
+        }
+
+        const restoreIndex = Math.min(
+            Math.max(Number(report._restoreIndex ?? reports.length), 0),
+            reports.length
+        );
+        const restoredReport = {
+            ...report
+        };
+        delete restoredReport._restoreIndex;
+        reports.splice(restoreIndex, 0, restoredReport);
+        this.setState(state);
+        this.notifyDataChange('report_restored', { report: restoredReport, index: restoreIndex });
+        return restoredReport;
     },
 
     downloadReport(id) {
@@ -2086,6 +2184,17 @@ const FinCastData = {
             if (clearButton) {
                 event.preventDefault();
                 this.clearNotifications();
+
+                const popupBody = document.querySelector('#notificationPopup .notification-popup-body');
+                if (popupBody) {
+                    const notifications = this.getNotifications();
+                    popupBody.innerHTML = this.renderNotificationsMarkup(notifications);
+                    const dot = document.getElementById('notificationDot');
+                    if (dot) {
+                        dot.style.display = this.hasUnreadAttentionNotifications(notifications) ? 'block' : 'none';
+                    }
+                }
+                return;
             }
         });
     },
@@ -2522,3 +2631,92 @@ const FinCastData = {
 
 FinCastData.init();
 window.FinCastData = FinCastData;
+
+const FlowUndo = {
+    container: null,
+    messageNode: null,
+    detailNode: null,
+    actionButton: null,
+    dismissButton: null,
+    timer: null,
+    currentAction: null,
+
+    ensureMounted() {
+        if (this.container) return this.container;
+        if (!document.body) {
+            document.addEventListener('DOMContentLoaded', () => this.ensureMounted(), { once: true });
+            return null;
+        }
+
+        const toast = document.createElement('div');
+        toast.className = 'undo-toast';
+        toast.setAttribute('role', 'status');
+        toast.setAttribute('aria-live', 'polite');
+        toast.innerHTML = `
+            <div class="undo-toast__icon"><i class="fas fa-rotate-left"></i></div>
+            <div class="undo-toast__copy">
+                <strong class="undo-toast__title"></strong>
+                <small class="undo-toast__detail">Undo is available for a few seconds.</small>
+            </div>
+            <div class="undo-toast__actions">
+                <button class="undo-toast__button" type="button">Undo</button>
+                <button class="undo-toast__dismiss" type="button" aria-label="Dismiss undo message">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        `;
+
+        document.body.appendChild(toast);
+        this.container = toast;
+        this.messageNode = toast.querySelector('.undo-toast__title');
+        this.detailNode = toast.querySelector('.undo-toast__detail');
+        this.actionButton = toast.querySelector('.undo-toast__button');
+        this.dismissButton = toast.querySelector('.undo-toast__dismiss');
+
+        this.actionButton?.addEventListener('click', async () => {
+            if (!this.currentAction?.onUndo) return;
+
+            const pendingUndo = this.currentAction.onUndo;
+            this.hide();
+            try {
+                await pendingUndo();
+            } catch (error) {
+                console.warn('Undo action failed:', error);
+            }
+        });
+
+        this.dismissButton?.addEventListener('click', () => this.hide());
+        return this.container;
+    },
+
+    show({ message, detail, actionLabel = 'Undo', timeout = 6000, onUndo } = {}) {
+        const toast = this.ensureMounted();
+        if (!toast) return;
+
+        window.clearTimeout(this.timer);
+        this.currentAction = { onUndo };
+
+        if (this.messageNode) {
+            this.messageNode.textContent = message || 'Recent action removed.';
+        }
+        if (this.detailNode) {
+            this.detailNode.textContent = detail || 'Undo is available for a few seconds.';
+        }
+        if (this.actionButton) {
+            this.actionButton.textContent = actionLabel;
+            this.actionButton.disabled = typeof onUndo !== 'function';
+        }
+
+        toast.classList.add('active');
+        this.timer = window.setTimeout(() => this.hide(), timeout);
+    },
+
+    hide() {
+        window.clearTimeout(this.timer);
+        this.timer = null;
+        this.currentAction = null;
+        this.container?.classList.remove('active');
+    }
+};
+
+window.FlowUndo = FlowUndo;

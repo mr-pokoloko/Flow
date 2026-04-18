@@ -302,8 +302,22 @@
 
         function deleteReportById(id) {
             if (!confirm('Delete this saved report?')) return;
-            FinCastData.deleteReport(id);
+
+            const deletedReport = FinCastData.deleteReport(id);
+            if (!deletedReport) return;
+
             renderReports();
+
+            if (window.FlowUndo) {
+                FlowUndo.show({
+                    message: `${deletedReport.name || 'Report'} deleted.`,
+                    detail: 'Undo restores the saved report entry instantly.',
+                    onUndo: () => {
+                        FinCastData.restoreReport(deletedReport);
+                        renderReports();
+                    }
+                });
+            }
         }
 
         window.addEventListener('fincast_data_change', function(event) {

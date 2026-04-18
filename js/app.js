@@ -621,12 +621,26 @@ async function loadRecurringExpenses() {
 async function deleteRecurring(id) {
     if (!confirm('Are you sure you want to delete this recurring expense?')) return;
 
+    const deletedRecurring = window.FinCastData ? FinCastData.deleteRecurringExpense(id) : null;
+    if (!deletedRecurring) return;
+
     const deletedRemotely = await postJson(`/delete_recurring/${id}`, {}, 'DELETE');
-    if (deletedRemotely || !window.FinCastData?.isRemoteSyncBlocked()) {
-        FinCastData.deleteRecurringExpense(id);
-    }
     await loadRecurringExpenses();
     updateNotifications();
+
+    if (window.FlowUndo) {
+        FlowUndo.show({
+            message: `${deletedRecurring.title || 'Recurring expense'} deleted.`,
+            detail: deletedRemotely
+                ? 'Restore it if this was an accidental delete.'
+                : 'Restored items come back locally even if the server is unavailable.',
+            onUndo: async () => {
+                FinCastData.restoreRecurringExpense(deletedRecurring);
+                await loadRecurringExpenses();
+                updateNotifications();
+            }
+        });
+    }
 }
 
 function toggleRecurringForm() {

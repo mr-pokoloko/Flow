@@ -113,6 +113,47 @@
             <div class="card shadow p-4 mt-4">
                 <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-4">
                     <div>
+                        <h5 class="mb-1"><i class="fas fa-wallet section-icon"></i> Budget summary</h5>
+                        <p class="muted-copy mb-0">See your monthly budget, remaining allowance, top category, and projected spending at a glance.</p>
+                    </div>
+                </div>
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <div class="soft-panel h-100">
+                            <small class="muted-copy d-block mb-2">Monthly budget</small>
+                            <h4 class="mb-1" id="profileMonthlyBudget">-</h4>
+                            <p class="muted-copy mb-0">Your active budget for the month</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="soft-panel h-100">
+                            <small class="muted-copy d-block mb-2">Budget left</small>
+                            <h4 class="mb-1" id="profileBudgetLeft">-</h4>
+                            <p class="muted-copy mb-0">Remaining from this month’s budget</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="soft-panel h-100">
+                            <small class="muted-copy d-block mb-2">Top spending category</small>
+                            <h4 class="mb-1" id="profileTopCategory">-</h4>
+                            <p class="muted-copy mb-0">Where you spend the most this month</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="row g-3 mt-3">
+                    <div class="col-md-4">
+                        <div class="soft-panel h-100">
+                            <small class="muted-copy d-block mb-2">Predicted monthly spend</small>
+                            <h4 class="mb-1" id="profilePredictedMonthly">-</h4>
+                            <p class="muted-copy mb-0">Estimated spend by month end</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card shadow p-4 mt-4">
+                <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-4">
+                    <div>
                         <h5 class="mb-1"><i class="fas fa-globe-americas section-icon"></i> Live Exchange Comparison</h5>
                         <p class="muted-copy mb-0">Compare live exchange rates across three currencies you choose.</p>
                     </div>
@@ -184,6 +225,35 @@
 
             const hasAttention = FinCastData.hasUnreadAttentionNotifications(notifications);
             dot.style.display = hasAttention ? 'block' : 'none';
+        }
+
+        function renderProfileBudgetSummary() {
+            if (!window.FinCastData) return;
+
+            const budget = FinCastData.getBudget() || {};
+            const analytics = FinCastData.getAnalytics() || {};
+            const formatCurrency = value => FinCastData.formatCurrency(value || 0);
+
+            const monthlyBudgetEl = document.getElementById('profileMonthlyBudget');
+            const budgetLeftEl = document.getElementById('profileBudgetLeft');
+            const topCategoryEl = document.getElementById('profileTopCategory');
+            const predictedMonthlyEl = document.getElementById('profilePredictedMonthly');
+
+            if (monthlyBudgetEl) {
+                monthlyBudgetEl.textContent = formatCurrency(budget.monthly || 0);
+            }
+            if (budgetLeftEl) {
+                const budgetLeft = typeof analytics.budgetLeft === 'number'
+                    ? analytics.budgetLeft
+                    : (typeof analytics.cycleBudgetLeft === 'number' ? analytics.cycleBudgetLeft : 0);
+                budgetLeftEl.textContent = formatCurrency(budgetLeft);
+            }
+            if (topCategoryEl) {
+                topCategoryEl.textContent = analytics.topCategory && analytics.topCategory !== '-' ? analytics.topCategory : 'Not available';
+            }
+            if (predictedMonthlyEl) {
+                predictedMonthlyEl.textContent = formatCurrency(analytics.predictedMonthly || 0);
+            }
         }
 
         function getDefaultExchangeSelections() {
@@ -329,6 +399,7 @@
             document.getElementById('profileEmail').textContent = user.email || 'john.doe@example.com';
             document.getElementById('profilePhone').textContent = user.phone || '+91 98765 43210';
             renderNotifications();
+            renderProfileBudgetSummary();
 
             document.querySelectorAll('.profile-photo').forEach(target => {
                 FinCastData.renderProfilePhoto(target);
@@ -348,6 +419,7 @@
             document.getElementById('profileEmail').textContent = user.email || 'john.doe@example.com';
             document.getElementById('profilePhone').textContent = user.phone || '+91 98765 43210';
             renderNotifications();
+            renderProfileBudgetSummary();
 
             document.querySelectorAll('.profile-photo').forEach(target => {
                 FinCastData.renderProfilePhoto(target);
