@@ -1,6 +1,9 @@
+import json
 import os
 from pathlib import Path
+from threading import Lock
 from typing import Any
+from datetime import date
 
 from flask import Flask, jsonify, request, send_from_directory
 
@@ -10,6 +13,92 @@ TEMPLATES_DIR = BASE_DIR / "templates"
 CSS_DIR = BASE_DIR / "css"
 JS_DIR = BASE_DIR / "js"
 SAMPLES_DIR = BASE_DIR / "samples"
+STORE_PATH = BASE_DIR / ".flow_store.json"
+STORE_LOCK = Lock()
+DEFAULT_USER_ID = "1"
+
+
+def default_store() -> dict[str, dict[str, Any]]:
+    return {
+        "expenses_by_user": {DEFAULT_USER_ID: []},
+        "budgets_by_user": {DEFAULT_USER_ID: {"monthly": 5000}},
+        "recurring_by_user": {DEFAULT_USER_ID: []},
+    }
+
+
+def read_store() -> dict[str, dict[str, Any]]:
+    if not STORE_PATH.exists():
+        return default_store()
+
+    try:
+        data = json.loads(STORE_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return default_store()
+
+    store = default_store()
+    if isinstance(data, dict):
+        for key in store:
+            value = data.get(key)
+            if isinstance(value, dict):
+                store[key] = value
+    return store
+
+
+def write_store(store: dict[str, dict[str, Any]]) -> None:
+    STORE_PATH.write_text(json.dumps(store, indent=2), encoding="utf-8")
+
+
+def get_user_bucket(store: dict[str, dict[str, Any]], bucket_name: str, user_id: str) -> Any:
+    bucket = store.setdefault(bucket_name, {})
+    if bucket_name == "budgets_by_user":
+        return bucket.setdefault(user_id, {"monthly": 5000})
+    return bucket.setdefault(user_id, [])
+
+
+def next_item_id(items: list[dict[str, Any]], prefix: str) -> str:
+    return f"{prefix}_{len(items) + 1}_{os.urandom(3).hex()}"
+
+
+def normalize_expense(payload: dict[str, Any], item_id: str | None = None) -> dict[str, Any]:
+    title = str(payload.get("title") or payload.get("name") or "Untitled expense").strip()
+    category = str(payload.get("category") or "Other").strip() or "Other"
+    expense_date = str(payload.get("date") or "").strip() or date.today().isoformat()
+    return {
+        "id": item_id or str(payload.get("id") or ""),
+        "title": title,
+        "amount": float(payload.get("amount") or 0),
+        "category": category,
+        "date": expense_date,
+        "user_id": str(payload.get("user_id") or DEFAULT_USER_ID),
+    }
+
+
+def normalize_recurring(payload: dict[str, Any], item_id: str | None = None) -> dict[str, Any]:
+    title = str(payload.get("title") or "Recurring expense").strip() or "Recurring expense"
+    category = str(payload.get("category") or "Bills").strip() or "Bills"
+    frequency = str(payload.get("frequency") or "monthly").strip() or "monthly"
+    start_date = str(payload.get("start_date") or payload.get("startDate") or "").strip()
+    next_due = str(payload.get("next_due") or payload.get("nextDue") or start_date).strip()
+    return {
+        "id": item_id or str(payload.get("id") or ""),
+        "title": title,
+        "amount": float(payload.get("amount") or 0),
+        "category": category,
+        "frequency": frequency,
+        "start_date": start_date,
+        "next_due": next_due,
+        "user_id": str(payload.get("user_id") or DEFAULT_USER_ID),
+    }
+
+
+def find_item(store: dict[str, dict[str, Any]], bucket_name: str, item_id: str) -> tuple[list[dict[str, Any]] | None, dict[str, Any] | None]:
+    for items in store.get(bucket_name, {}).values():
+        if not isinstance(items, list):
+            continue
+        for item in items:
+            if str(item.get("id")) == item_id:
+                return items, item
+    return None, None
 
 
 def load_local_env() -> None:
@@ -130,6 +219,137 @@ def chat() -> tuple:
         return jsonify({"error": str(error)}), 500
     except Exception:
         return jsonify({"error": "The chatbot could not reach Gemini right now. Please try again."}), 502
+
+
+@app.route("/get_expenses/<user_id>")
+def get_expenses(user_id: str):
+    with STORE_LOCK:
+        store = read_store()
+        return jsonify(get_user_bucket(store, "expenses_by_user", user_id))
+
+
+@app.route("/add_expense", methods=["POST"])
+def add_expense():
+    payload = request.get_json(silent=True) or {}
+    user_id = str(payload.get("user_id") or DEFAULT_USER_ID)
+
+    with STORE_LOCK:
+        store = read_store()
+        expenses = get_user_bucket(store, "expenses_by_user", user_id)
+        item_id = next_item_id(expenses, "exp")
+        expense = normalize_expense(payload, item_id=item_id)
+        expenses.append(expense)
+        write_store(store)
+
+    return jsonify(expense), 201
+
+
+@app.route("/get_budget/<user_id>")
+def get_budget(user_id: str):
+    with STORE_LOCK:
+        store = read_store()
+        return jsonify(get_user_bucket(store, "budgets_by_user", user_id))
+
+
+@app.route("/update_budget", methods=["POST"])
+def update_budget():
+    payload = request.get_json(silent=True) or {}
+    user_id = str(payload.get("user_id") or DEFAULT_USER_ID)
+    monthly = float(payload.get("monthly") or 0)
+
+    with STORE_LOCK:
+        store = read_store()
+        budget = get_user_bucket(store, "budgets_by_user", user_id)
+        budget["monthly"] = monthly
+        write_store(store)
+
+    return jsonify(budget)
+
+
+@app.route("/get_recurring/<user_id>")
+def get_recurring(user_id: str):
+    with STORE_LOCK:
+        store = read_store()
+        return jsonify(get_user_bucket(store, "recurring_by_user", user_id))
+
+
+@app.route("/add_recurring", methods=["POST"])
+def add_recurring():
+    payload = request.get_json(silent=True) or {}
+    user_id = str(payload.get("user_id") or DEFAULT_USER_ID)
+
+    with STORE_LOCK:
+        store = read_store()
+        recurring = get_user_bucket(store, "recurring_by_user", user_id)
+        item_id = next_item_id(recurring, "rec")
+        item = normalize_recurring(payload, item_id=item_id)
+        recurring.append(item)
+        write_store(store)
+
+    return jsonify(item), 201
+
+
+@app.route("/delete_recurring/<item_id>", methods=["DELETE"])
+def delete_recurring(item_id: str):
+    with STORE_LOCK:
+        store = read_store()
+        items, _ = find_item(store, "recurring_by_user", item_id)
+        deleted = items is not None
+        if items is not None:
+            items[:] = [item for item in items if str(item.get("id")) != item_id]
+        if deleted:
+            write_store(store)
+
+    if not deleted:
+        return jsonify({"error": "Recurring expense not found."}), 404
+    return jsonify({"deleted": True, "id": item_id})
+
+
+@app.route("/update_expense/<item_id>", methods=["PUT"])
+def update_expense(item_id: str):
+    payload = request.get_json(silent=True) or {}
+
+    with STORE_LOCK:
+        store = read_store()
+        _, existing = find_item(store, "expenses_by_user", item_id)
+        if existing is None:
+            return jsonify({"error": "Expense not found."}), 404
+
+        updated = normalize_expense({**existing, **payload}, item_id=item_id)
+        existing.update(updated)
+        write_store(store)
+
+    return jsonify(existing)
+
+
+@app.route("/delete_expense/<item_id>", methods=["DELETE"])
+def delete_expense(item_id: str):
+    with STORE_LOCK:
+        store = read_store()
+        items, _ = find_item(store, "expenses_by_user", item_id)
+        deleted = items is not None
+        if items is not None:
+            items[:] = [item for item in items if str(item.get("id")) != item_id]
+            write_store(store)
+
+    if not deleted:
+        return jsonify({"error": "Expense not found."}), 404
+    return jsonify({"deleted": True, "id": item_id})
+
+
+@app.route("/reset_user_data", methods=["POST"])
+def reset_user_data():
+    payload = request.get_json(silent=True) or {}
+    user_id = str(payload.get("user_id") or DEFAULT_USER_ID)
+
+    with STORE_LOCK:
+        store = read_store()
+        store.setdefault("expenses_by_user", {})[user_id] = []
+        store.setdefault("budgets_by_user", {})[user_id] = {"monthly": 5000}
+        store.setdefault("recurring_by_user", {})[user_id] = []
+        write_store(store)
+
+    return jsonify({"reset": True, "user_id": user_id})
 
 
 @app.route("/")

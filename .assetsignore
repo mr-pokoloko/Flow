@@ -1,0 +1,14 @@
+.git
+.vscode
+.windsurf
+node_modules
+src
+app.py
+requirements.txt
+package.json
+package-lock.json
+wrangler.jsonc
+README.md
+__pycache__/
+.env
+.flow_store.json

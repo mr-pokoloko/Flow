@@ -1,0 +1,35 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "flow",
+  "main": "src/index.js",
+  "compatibility_date": "2026-04-25",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "assets": {
+    "directory": ".",
+    "binding": "ASSETS",
+    "run_worker_first": [
+      "/api/*",
+      "/add_expense",
+      "/update_expense/*",
+      "/delete_expense/*",
+      "/get_expenses/*",
+      "/get_budget/*",
+      "/update_budget",
+      "/get_recurring/*",
+      "/add_recurring",
+      "/delete_recurring/*",
+      "/reset_user_data"
+    ]
+  },
+  "hyperdrive": [
+    {
+      "binding": "HYPERDRIVE",
+      "id": "214becca564c446bb15e66b48b1c1317",
+      // For local `wrangler dev`, prefer setting:
+      // CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE
+      // instead of committing a localConnectionString here.
+    }
+  ]
+}

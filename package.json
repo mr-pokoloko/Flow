@@ -1,0 +1,17 @@
+{
+  "name": "flow-cloudflare",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "check:worker": "node --check src/index.js"
+  },
+  "dependencies": {
+    "pg": "^8.16.3"
+  },
+  "devDependencies": {
+    "wrangler": "^4.13.2"
+  }
+}

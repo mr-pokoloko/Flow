@@ -225,6 +225,17 @@
             document.getElementById('notificationPopup').classList.toggle('active');
         }
 
+        async function requestJson(url, options = {}) {
+            try {
+                const response = await fetch(url, options);
+                if (!response.ok) return null;
+                return await response.json();
+            } catch (error) {
+                console.warn(`Flow request failed for ${url}:`, error);
+                return null;
+            }
+        }
+
         function renderNotifications() {
             const popupBody = document.querySelector('#notificationPopup .notification-popup-body');
             const dot = document.getElementById('notificationDot');
@@ -309,7 +320,6 @@
                         renewalDay: renewalDayValue
                     });
                 }
-
                 FinCastData.allowRemoteSync();
                 btn.innerHTML = '<i class="fas fa-check"></i> Budget Saved!';
                 btn.classList.add('btn-success');

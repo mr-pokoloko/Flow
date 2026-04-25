@@ -49,6 +49,119 @@ const FinCastData = {
         this.bindSignOutLinks();
         this.bindThemeControls();
         this.bindNotificationControls();
+        this.syncSessionFromRemote();
+    },
+
+    isRemoteApiAvailable() {
+        return window.location.protocol === 'http:' || window.location.protocol === 'https:';
+    },
+
+    async requestApi(path, options = {}) {
+        if (!this.isRemoteApiAvailable()) return null;
+
+        try {
+            const response = await fetch(path, {
+                ...options,
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(options.headers || {})
+                }
+            });
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                throw new Error(payload?.error || 'Request failed.');
+            }
+            return payload;
+        } catch (error) {
+            console.warn(`Flow remote request failed for ${path}:`, error);
+            throw error;
+        }
+    },
+
+    normalizeRemoteUser(user) {
+        if (!user) return null;
+        return {
+            id: user.id,
+            username: user.username,
+            fullName: user.fullName || user.full_name || user.username || DEFAULT_PROFILE.fullName,
+            email: user.email || '',
+            phone: user.phone || '',
+            role: user.role || DEFAULT_PROFILE.role,
+            profileImage: user.profileImage || user.profile_image || '',
+            passwordHash: user.passwordHash || user.password_hash || null,
+            legacyAccount: Boolean(user.legacyAccount ?? user.legacy_account),
+            createdAt: user.createdAt || user.created_at || new Date().toISOString()
+        };
+    },
+
+    applyRemoteBootstrap(payload, options = {}) {
+        const remoteUser = this.normalizeRemoteUser(payload?.user);
+        if (!remoteUser?.username) return null;
+
+        const username = remoteUser.username;
+        const state = this.getState();
+        const existingIndex = state.users.findIndex(user => user.username === username);
+        if (existingIndex >= 0) {
+            state.users[existingIndex] = {
+                ...state.users[existingIndex],
+                ...remoteUser
+            };
+        } else {
+            state.users.push(remoteUser);
+        }
+
+        state.expensesByUser[username] = this.dedupeExpenses((payload.expenses || []).map(item => ({
+            id: item.id,
+            name: item.name || item.title,
+            amount: Number(item.amount) || 0,
+            category: item.category || 'Other',
+            date: item.date || new Date().toISOString().split('T')[0],
+            recurringId: item.recurringId || item.recurring_id || null,
+            sourceType: item.sourceType || item.source_type || 'manual',
+            scheduleKey: item.scheduleKey || item.schedule_key || null
+        })));
+        state.recurringByUser[username] = (payload.recurring || []).map(item => this.normalizeRecurringItem(item));
+        state.reportsByUser[username] = (payload.reports || []).map(item => ({
+            id: item.id,
+            type: item.type || item.report_type || 'monthly',
+            name: item.name || 'Report',
+            period: item.period || '',
+            generatedOn: item.generatedOn || item.generated_on || new Date().toISOString(),
+            size: item.size || '0 KB',
+            content: item.content || {}
+        }));
+        state.budgetsByUser[username] = {
+            ...DEFAULT_BUDGET,
+            ...(payload.budget || {})
+        };
+        state.settingsByUser[username] = {
+            ...DEFAULT_SETTINGS,
+            ...(payload.settings || {})
+        };
+        state.notificationsByUser[username] = state.notificationsByUser[username] || [];
+        this.setState(state);
+        this.setSession({
+            username,
+            userId: remoteUser.id,
+            loggedInAt: new Date().toISOString()
+        });
+        this.syncLegacyStorage();
+        this.applyTheme(state.settingsByUser[username].theme || DEFAULT_SETTINGS.theme);
+        this.notifyDataChange(options.eventName || 'remote_sync_completed', { username });
+        return remoteUser;
+    },
+
+    async syncSessionFromRemote() {
+        const session = this.getSession();
+        const username = session?.username;
+        if (!username || !this.isRemoteApiAvailable()) return null;
+
+        try {
+            const payload = await this.requestApi(`/api/bootstrap/${encodeURIComponent(username)}`);
+            return this.applyRemoteBootstrap(payload, { eventName: 'remote_session_synced' });
+        } catch {
+            return null;
+        }
     },
 
     getState() {
@@ -631,6 +744,15 @@ const FinCastData = {
     },
 
     async registerUser(profile) {
+        if (this.isRemoteApiAvailable()) {
+            const payload = await this.requestApi('/api/auth/register', {
+                method: 'POST',
+                body: JSON.stringify(profile)
+            });
+            const user = this.applyRemoteBootstrap(payload, { eventName: 'user_registered' });
+            return user;
+        }
+
         const state = this.getState();
         const username = (profile.username || '').trim();
         const email = (profile.email || '').trim().toLowerCase();
@@ -676,6 +798,15 @@ const FinCastData = {
     },
 
     async loginUser(username, password) {
+        if (this.isRemoteApiAvailable()) {
+            const payload = await this.requestApi('/api/auth/login', {
+                method: 'POST',
+                body: JSON.stringify({ username, password })
+            });
+            const user = this.applyRemoteBootstrap(payload, { eventName: 'user_logged_in' });
+            return user;
+        }
+
         const normalizedUsername = (username || '').trim();
         const user = this.getUserByUsername(normalizedUsername);
 
@@ -708,6 +839,18 @@ const FinCastData = {
     },
 
     async updatePassword(currentPassword, nextPassword) {
+        const currentUser = this.getCurrentUser();
+        if (this.isRemoteApiAvailable() && currentUser?.id) {
+            await this.requestApi('/api/users/password', {
+                method: 'PUT',
+                body: JSON.stringify({
+                    userId: currentUser.id,
+                    currentPassword,
+                    nextPassword
+                })
+            });
+        }
+
         const state = this.getState();
         const username = this.getCurrentUsername();
         const userIndex = state.users.findIndex(user => user.username === username);
@@ -770,6 +913,22 @@ const FinCastData = {
         this.setState(state);
         this.syncLegacyStorage();
         this.notifyDataChange('expense_added', nextExpense);
+        const currentUser = this.getCurrentUser();
+        if (this.isRemoteApiAvailable() && currentUser?.id) {
+            this.requestApi('/add_expense', {
+                method: 'POST',
+                body: JSON.stringify({
+                    user_id: currentUser.id,
+                    title: nextExpense.name,
+                    amount: nextExpense.amount,
+                    category: nextExpense.category,
+                    date: nextExpense.date,
+                    recurring_id: nextExpense.recurringId,
+                    source_type: nextExpense.sourceType,
+                    schedule_key: nextExpense.scheduleKey
+                })
+            }).catch(() => null);
+        }
         return nextExpense;
     },
 
@@ -789,6 +948,19 @@ const FinCastData = {
         this.setState(state);
         this.syncLegacyStorage();
         this.notifyDataChange('expense_updated', expenses[index]);
+        if (this.isRemoteApiAvailable()) {
+            this.requestApi(`/update_expense/${encodeURIComponent(id)}`, {
+                method: 'PUT',
+                body: JSON.stringify({
+                    title: expenses[index].name,
+                    amount: expenses[index].amount,
+                    category: expenses[index].category,
+                    date: expenses[index].date,
+                    source_type: expenses[index].sourceType,
+                    schedule_key: expenses[index].scheduleKey
+                })
+            }).catch(() => null);
+        }
         return expenses[index];
     },
 
@@ -803,6 +975,11 @@ const FinCastData = {
         this.setState(state);
         this.syncLegacyStorage();
         this.notifyDataChange('expense_deleted', { id, expense: deletedExpense, index });
+        if (this.isRemoteApiAvailable()) {
+            this.requestApi(`/delete_expense/${encodeURIComponent(id)}`, {
+                method: 'DELETE'
+            }).catch(() => null);
+        }
         return {
             ...deletedExpense,
             _restoreIndex: index
@@ -838,6 +1015,22 @@ const FinCastData = {
         this.setState(state);
         this.syncLegacyStorage();
         this.notifyDataChange('expense_restored', { expense: restoredExpense, index: restoreIndex });
+        const currentUser = this.getCurrentUser();
+        if (this.isRemoteApiAvailable() && currentUser?.id) {
+            this.requestApi('/add_expense', {
+                method: 'POST',
+                body: JSON.stringify({
+                    user_id: currentUser.id,
+                    title: restoredExpense.name,
+                    amount: restoredExpense.amount,
+                    category: restoredExpense.category,
+                    date: restoredExpense.date,
+                    recurring_id: restoredExpense.recurringId,
+                    source_type: restoredExpense.sourceType,
+                    schedule_key: restoredExpense.scheduleKey
+                })
+            }).catch(() => null);
+        }
         return restoredExpense;
     },
 
@@ -867,6 +1060,20 @@ const FinCastData = {
         this.setState(state);
         this.ensureRecurringExpenseHistory();
         this.notifyDataChange('recurring_added', recurring);
+        const currentUser = this.getCurrentUser();
+        if (this.isRemoteApiAvailable() && currentUser?.id) {
+            this.requestApi('/add_recurring', {
+                method: 'POST',
+                body: JSON.stringify({
+                    user_id: currentUser.id,
+                    title: recurring.title,
+                    amount: recurring.amount,
+                    category: recurring.category,
+                    frequency: recurring.frequency,
+                    start_date: recurring.startDate
+                })
+            }).catch(() => null);
+        }
         return recurring;
     },
 
@@ -880,6 +1087,11 @@ const FinCastData = {
         const [deletedRecurring] = recurring.splice(index, 1);
         this.setState(state);
         this.notifyDataChange('recurring_deleted', { id, recurring: deletedRecurring, index });
+        if (this.isRemoteApiAvailable()) {
+            this.requestApi(`/delete_recurring/${encodeURIComponent(id)}`, {
+                method: 'DELETE'
+            }).catch(() => null);
+        }
         return {
             ...deletedRecurring,
             _restoreIndex: index
@@ -905,6 +1117,20 @@ const FinCastData = {
         this.setState(state);
         this.ensureRecurringExpenseHistory();
         this.notifyDataChange('recurring_restored', { recurring: restoredRecurring, index: restoreIndex });
+        const currentUser = this.getCurrentUser();
+        if (this.isRemoteApiAvailable() && currentUser?.id) {
+            this.requestApi('/add_recurring', {
+                method: 'POST',
+                body: JSON.stringify({
+                    user_id: currentUser.id,
+                    title: restoredRecurring.title,
+                    amount: restoredRecurring.amount,
+                    category: restoredRecurring.category,
+                    frequency: restoredRecurring.frequency,
+                    start_date: restoredRecurring.startDate
+                })
+            }).catch(() => null);
+        }
         return restoredRecurring;
     },
 
@@ -939,6 +1165,19 @@ const FinCastData = {
         this.setState(state);
         this.syncLegacyStorage();
         this.notifyDataChange('user_updated', this.getUserData());
+        if (this.isRemoteApiAvailable() && state.users[index]?.id) {
+            this.requestApi('/api/users/profile', {
+                method: 'PUT',
+                body: JSON.stringify({
+                    userId: state.users[index].id,
+                    username: state.users[index].username,
+                    fullName: state.users[index].fullName,
+                    email: state.users[index].email,
+                    phone: state.users[index].phone,
+                    profileImage: state.users[index].profileImage
+                })
+            }).catch(() => null);
+        }
         return this.getUserData();
     },
 
@@ -964,6 +1203,20 @@ const FinCastData = {
         this.setState(state);
         this.syncLegacyStorage();
         this.notifyDataChange('budget_updated', state.budgetsByUser[username]);
+        const currentUser = this.getCurrentUser();
+        if (this.isRemoteApiAvailable() && currentUser?.id) {
+            this.requestApi('/update_budget', {
+                method: 'POST',
+                body: JSON.stringify({
+                    user_id: currentUser.id,
+                    monthly: state.budgetsByUser[username].monthly,
+                    alert_threshold: state.budgetsByUser[username].alertThreshold,
+                    currency: state.budgetsByUser[username].currency,
+                    auto_renew: state.budgetsByUser[username].autoRenew,
+                    renewal_day: state.budgetsByUser[username].renewalDay
+                })
+            }).catch(() => null);
+        }
         return state.budgetsByUser[username];
     },
 
@@ -988,6 +1241,16 @@ const FinCastData = {
             this.applyTheme(state.settingsByUser[username].theme);
         }
         this.notifyDataChange('settings_updated', state.settingsByUser[username]);
+        const currentUser = this.getCurrentUser();
+        if (this.isRemoteApiAvailable() && currentUser?.id) {
+            this.requestApi('/api/settings', {
+                method: 'PUT',
+                body: JSON.stringify({
+                    userId: currentUser.id,
+                    ...state.settingsByUser[username]
+                })
+            }).catch(() => null);
+        }
         return state.settingsByUser[username];
     },
 
@@ -1314,6 +1577,37 @@ const FinCastData = {
         state.reportsByUser[username] = [report, ...(state.reportsByUser[username] || [])];
         this.setState(state);
         this.notifyDataChange('report_created', report);
+        const currentUser = this.getCurrentUser();
+        if (this.isRemoteApiAvailable() && currentUser?.id) {
+            this.requestApi('/api/reports', {
+                method: 'POST',
+                body: JSON.stringify({
+                    userId: currentUser.id,
+                    type: report.type,
+                    name: report.name,
+                    period: report.period,
+                    periodObject: {
+                        label: report.period
+                    },
+                    size: report.size,
+                    content: report.content
+                })
+            }).then(payload => {
+                if (!payload?.report?.id) return;
+                const remoteState = this.getState();
+                const reports = remoteState.reportsByUser[username] || [];
+                const reportIndex = reports.findIndex(item => item.id === report.id);
+                if (reportIndex >= 0) {
+                    reports[reportIndex] = {
+                        ...reports[reportIndex],
+                        id: payload.report.id,
+                        generatedOn: payload.report.generatedOn || reports[reportIndex].generatedOn
+                    };
+                    this.setState(remoteState);
+                    this.notifyDataChange('report_created', reports[reportIndex]);
+                }
+            }).catch(() => null);
+        }
         return report;
     },
 
@@ -1332,6 +1626,11 @@ const FinCastData = {
         const [deletedReport] = reports.splice(index, 1);
         this.setState(state);
         this.notifyDataChange('report_deleted', { id, report: deletedReport, index });
+        if (this.isRemoteApiAvailable()) {
+            this.requestApi(`/api/reports/${encodeURIComponent(id)}`, {
+                method: 'DELETE'
+            }).catch(() => null);
+        }
         return {
             ...deletedReport,
             _restoreIndex: index
@@ -1359,6 +1658,23 @@ const FinCastData = {
         reports.splice(restoreIndex, 0, restoredReport);
         this.setState(state);
         this.notifyDataChange('report_restored', { report: restoredReport, index: restoreIndex });
+        const currentUser = this.getCurrentUser();
+        if (this.isRemoteApiAvailable() && currentUser?.id) {
+            this.requestApi('/api/reports', {
+                method: 'POST',
+                body: JSON.stringify({
+                    userId: currentUser.id,
+                    type: restoredReport.type,
+                    name: restoredReport.name,
+                    period: restoredReport.period,
+                    periodObject: {
+                        label: restoredReport.period
+                    },
+                    size: restoredReport.size,
+                    content: restoredReport.content
+                })
+            }).catch(() => null);
+        }
         return restoredReport;
     },
 
@@ -2202,6 +2518,7 @@ const FinCastData = {
     clearAllUserData() {
         const state = this.getState();
         const username = this.getCurrentUsername();
+        const currentUser = this.getCurrentUser();
         state.expensesByUser[username] = [];
         state.recurringByUser[username] = [];
         state.reportsByUser[username] = [];
@@ -2211,12 +2528,19 @@ const FinCastData = {
         localStorage.setItem(FINCAST_REMOTE_SYNC_BLOCKED, 'true');
         this.syncLegacyStorage();
         this.notifyDataChange('all_data_cleared', { username });
+        if (this.isRemoteApiAvailable() && currentUser?.id) {
+            this.requestApi('/reset_user_data', {
+                method: 'POST',
+                body: JSON.stringify({ user_id: currentUser.id })
+            }).catch(() => null);
+        }
         return true;
     },
 
     deleteCurrentAccount() {
         const state = this.getState();
         const username = this.getCurrentUsername();
+        const currentUser = this.getCurrentUser();
         state.users = state.users.filter(user => user.username !== username);
         delete state.expensesByUser[username];
         delete state.recurringByUser[username];
@@ -2227,6 +2551,12 @@ const FinCastData = {
         this.setState(state);
         this.clearSession();
         this.clearLegacyKeys();
+        if (this.isRemoteApiAvailable() && currentUser?.id) {
+            this.requestApi('/api/users/account', {
+                method: 'DELETE',
+                body: JSON.stringify({ userId: currentUser.id })
+            }).catch(() => null);
+        }
         return true;
     },
 

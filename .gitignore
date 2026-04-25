@@ -1,2 +1,4 @@
 .env
 __pycache__/
+.flow_store.json
+node_modules/

@@ -18,6 +18,10 @@ const chartCategoryColors = [
 
 let savingsHistoryYear = new Date().getFullYear();
 
+function getActiveUserId() {
+    return window.FinCastData?.getCurrentUser?.()?.id || null;
+}
+
 function getThemePalette() {
     return window.FinCastData ? FinCastData.getChartPalette() : {
         indigo: '#2b2d42',
@@ -293,24 +297,7 @@ function bindExpenseForm() {
             return;
         }
 
-        let savedExpense = expense;
-        const backendExpense = await postJson('/add_expense', {
-            title: expense.name,
-            amount: expense.amount,
-            category: expense.category,
-            date: expense.date,
-            user_id: 1
-        });
-
-        if (backendExpense && typeof backendExpense === 'object') {
-            savedExpense = {
-                id: backendExpense.id || undefined,
-                ...expense
-            };
-            FinCastData.allowRemoteSync();
-        }
-
-        FinCastData.addExpense(savedExpense);
+        FinCastData.addExpense(expense);
         expenses = FinCastData.getExpenses();
         renderExpenseTable();
         updateCharts();
@@ -340,7 +327,12 @@ async function loadDashboardData() {
         return;
     }
 
-    const remoteExpenses = await getJson('/get_expenses/1');
+    const userId = getActiveUserId();
+    if (!userId) {
+        return;
+    }
+
+    const remoteExpenses = await getJson(`/get_expenses/${encodeURIComponent(userId)}`);
     if (Array.isArray(remoteExpenses)) {
         const mappedExpenses = remoteExpenses
             .filter(item => item && typeof item === 'object' && item.title && item.amount !== undefined)
@@ -361,7 +353,7 @@ async function loadDashboardData() {
         }
     }
 
-    const remoteBudget = await getJson('/get_budget/1');
+    const remoteBudget = await getJson(`/get_budget/${encodeURIComponent(userId)}`);
     if (remoteBudget && typeof remoteBudget.monthly !== 'undefined') {
         FinCastData.updateBudget({
             monthly: Number(remoteBudget.monthly) || monthlyBudget
@@ -371,7 +363,7 @@ async function loadDashboardData() {
         updateBudgetStatus();
     }
 
-    const remoteRecurring = await getJson('/get_recurring/1');
+    const remoteRecurring = await getJson(`/get_recurring/${encodeURIComponent(userId)}`);
     if (Array.isArray(remoteRecurring)) {
         const recurring = remoteRecurring
             .filter(item => item && typeof item === 'object')
@@ -624,16 +616,13 @@ async function deleteRecurring(id) {
     const deletedRecurring = window.FinCastData ? FinCastData.deleteRecurringExpense(id) : null;
     if (!deletedRecurring) return;
 
-    const deletedRemotely = await postJson(`/delete_recurring/${id}`, {}, 'DELETE');
     await loadRecurringExpenses();
     updateNotifications();
 
     if (window.FlowUndo) {
         FlowUndo.show({
             message: `${deletedRecurring.title || 'Recurring expense'} deleted.`,
-            detail: deletedRemotely
-                ? 'Restore it if this was an accidental delete.'
-                : 'Restored items come back locally even if the server is unavailable.',
+            detail: 'Restore it if this was an accidental delete.',
             onUndo: async () => {
                 FinCastData.restoreRecurringExpense(deletedRecurring);
                 await loadRecurringExpenses();
@@ -674,10 +663,7 @@ async function addRecurring() {
     }
 
     const startDate = new Date().toISOString().split('T')[0];
-    const payload = { title, amount, category, frequency, start_date: startDate, next_due: startDate, user_id: 1 };
-    const backendRecurring = await postJson('/add_recurring', payload);
     FinCastData.addRecurringExpense({
-        id: backendRecurring?.id,
         title,
         amount,
         category,
@@ -685,7 +671,6 @@ async function addRecurring() {
         startDate,
         createdAt: new Date().toISOString()
     });
-    FinCastData.allowRemoteSync();
 
     document.getElementById('r_title').value = '';
     document.getElementById('r_amount').value = '';

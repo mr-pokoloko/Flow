@@ -162,6 +162,15 @@
             document.getElementById('notificationPopup').classList.toggle('active');
         }
 
+        function escapeHtml(value) {
+            return String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
         function renderNotifications() {
             const popupBody = document.querySelector('#notificationPopup .notification-popup-body');
             const dot = document.getElementById('notificationDot');
@@ -274,13 +283,13 @@
 
             tbody.innerHTML = reports.map(report => `
                 <tr>
-                    <td><strong>${report.name}</strong></td>
-                    <td class="muted-copy">${report.period}</td>
-                    <td class="muted-copy">${FinCastData.formatDate(report.generatedOn)}</td>
-                    <td class="muted-copy">${report.size}</td>
+                    <td><strong>${escapeHtml(report.name)}</strong></td>
+                    <td class="muted-copy">${escapeHtml(report.period)}</td>
+                    <td class="muted-copy">${escapeHtml(FinCastData.formatDate(report.generatedOn))}</td>
+                    <td class="muted-copy">${escapeHtml(report.size)}</td>
                     <td class="text-center">
-                        <button class="btn btn-soft btn-sm" onclick="downloadReportById('${report.id}')"><i class="fas fa-download"></i> Download</button>
-                        <button class="btn btn-danger-soft btn-sm" onclick="deleteReportById('${report.id}')"><i class="fas fa-trash"></i></button>
+                        <button class="btn btn-soft btn-sm" onclick='downloadReportById(${JSON.stringify(String(report.id ?? ''))})'><i class="fas fa-download"></i> Download</button>
+                        <button class="btn btn-danger-soft btn-sm" onclick='deleteReportById(${JSON.stringify(String(report.id ?? ''))})'><i class="fas fa-trash"></i></button>
                     </td>
                 </tr>
             `).join('');

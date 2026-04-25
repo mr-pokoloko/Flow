@@ -215,6 +215,15 @@
             document.getElementById('notificationPopup').classList.toggle('active');
         }
 
+        function escapeHtml(value) {
+            return String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
         function renderNotifications() {
             const popupBody = document.querySelector('#notificationPopup .notification-popup-body');
             const dot = document.getElementById('notificationDot');
@@ -286,18 +295,18 @@
             grid.innerHTML = cards.map(card => `
                 <div class="col-lg-4 col-md-6">
                     <div class="soft-panel h-100">
-                        <small class="muted-copy d-block mb-2">${card.baseName}</small>
-                        <h4 class="mb-3">${card.baseCode}</h4>
+                        <small class="muted-copy d-block mb-2">${escapeHtml(card.baseName)}</small>
+                        <h4 class="mb-3">${escapeHtml(card.baseCode)}</h4>
                         <div class="d-flex flex-column gap-2">
                             ${card.rates.map(rate => `
                                 <div class="d-flex justify-content-between align-items-start gap-3">
                                     <div>
-                                        <strong>${rate.targetCode}</strong>
-                                        <div class="muted-copy">${rate.targetName}</div>
+                                        <strong>${escapeHtml(rate.targetCode)}</strong>
+                                        <div class="muted-copy">${escapeHtml(rate.targetName)}</div>
                                     </div>
                                     <div class="text-end">
-                                        <strong>${rate.value}</strong>
-                                        <div class="muted-copy">for 1 ${card.baseCode}</div>
+                                        <strong>${escapeHtml(rate.value)}</strong>
+                                        <div class="muted-copy">for 1 ${escapeHtml(card.baseCode)}</div>
                                     </div>
                                 </div>
                             `).join('')}

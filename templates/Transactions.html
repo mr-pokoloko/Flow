@@ -181,6 +181,15 @@
             document.getElementById('notificationPopup').classList.toggle('active');
         }
 
+        function escapeHtml(value) {
+            return String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
         function renderNotifications() {
             const popupBody = document.querySelector('#notificationPopup .notification-popup-body');
             const dot = document.getElementById('notificationDot');
@@ -240,22 +249,23 @@
 
             pageItems.forEach(expense => {
                 const row = document.createElement('tr');
+                const safeExpenseId = JSON.stringify(String(expense.id ?? ''));
                 row.innerHTML = `
                     <td>
                         <div class="tx-summary">
                             <div class="tx-icon"><i class="fas ${categoryIcons[expense.category] || 'fa-tag'}"></i></div>
                             <div>
-                                <div class="tx-title">${expense.name}</div>
-                                <div class="tx-subtitle">${expense.category}</div>
+                                <div class="tx-title">${escapeHtml(expense.name)}</div>
+                                <div class="tx-subtitle">${escapeHtml(expense.category)}</div>
                             </div>
                         </div>
                     </td>
-                    <td><span class="category-badge">${expense.category}</span></td>
-                    <td class="muted-copy">${FinCastData.formatDate(expense.date)}</td>
+                    <td><span class="category-badge">${escapeHtml(expense.category)}</span></td>
+                    <td class="muted-copy">${escapeHtml(FinCastData.formatDate(expense.date))}</td>
                     <td class="text-end"><strong class="amount-negative">-${FinCastData.formatCurrency(expense.amount)}</strong></td>
                     <td class="text-center">
-                        <button class="action-btn edit" onclick="editExpense('${expense.id}')"><i class="fas fa-pen"></i></button>
-                        <button class="action-btn delete" onclick="deleteExpense('${expense.id}')"><i class="fas fa-trash"></i></button>
+                        <button class="action-btn edit" onclick='editExpense(${safeExpenseId})'><i class="fas fa-pen"></i></button>
+                        <button class="action-btn delete" onclick='deleteExpense(${safeExpenseId})'><i class="fas fa-trash"></i></button>
                     </td>
                 `;
                 tbody.appendChild(row);
@@ -324,7 +334,8 @@
             const select = document.getElementById('categoryFilter');
             const categories = [...new Set(FinCastData.getExpenses().map(item => item.category || 'Other'))].sort();
             select.innerHTML = '<option value="all">All Categories</option>' + categories.map(category => {
-                return `<option value="${category}">${category}</option>`;
+                const safeCategory = escapeHtml(category);
+                return `<option value="${safeCategory}">${safeCategory}</option>`;
             }).join('');
         }
 
