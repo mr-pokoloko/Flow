@@ -1,59 +1,137 @@
-﻿# Flow Deployment
+# Flow
 
-Flow is now arranged for Cloudflare deployment with:
+Flow is a smart expense and bill prediction web app for tracking day-to-day spending, managing monthly budgets, reviewing analytics, and generating finance reports. It combines a responsive frontend, persistent user data, recurring expense automation, report downloads, and an AI assistant that helps users understand their money habits.
 
-- static assets served by Cloudflare Workers Assets
-- a Worker API in `src/index.js`
-- PostgreSQL access through a Cloudflare Hyperdrive binding named `HYPERDRIVE`
-- frontend state sync that can bootstrap from and persist to the Worker API
+The project is currently arranged for Cloudflare Workers deployment, with a legacy Flask app still included for local development and reference.
 
-## Important Security Note
+## Features
 
-The Neon connection string was shared in chat while setting this up. Rotate that Neon password/connection string before production use, then update the Hyperdrive origin connection in Cloudflare to the rotated credential.
+- User signup, login, profile updates, password updates, and account deletion
+- Dashboard with total spending, remaining budget, savings, recent expenses, monthly trend charts, and category summaries
+- Transaction management with add, edit, delete, restore, filtering, and history views
+- Recurring expense tracking with automatic scheduled expense generation
+- Budget settings with alert thresholds, renewal options, and notification preferences
+- Analytics page with spending trends, monthly comparison, and category breakdowns
+- Report generation with downloadable PDF reports
+- Light and dark theme support
+- Currency selection, currency conversion, and exchange comparison support
+- Flow AI chatbot powered by Gemini for budgeting, spending, and report guidance
+- Local browser cache with optional remote sync through the Worker API
 
-## Files Added
+## Tech Stack
 
-- `wrangler.jsonc`: Cloudflare Worker config
-- `package.json`: Wrangler + `pg`
-- `.assetsignore`: prevents non-public files from being uploaded as static assets
-- `src/index.js`: Worker API and static-asset entrypoint
+**Frontend**
 
-## Worker Environment
+- HTML, CSS, JavaScript
+- Bootstrap
+- Font Awesome
+- Chart.js
+- Browser `localStorage` and `sessionStorage`
 
-The Worker expects:
+**Backend / Deployment**
 
-- Hyperdrive binding: `HYPERDRIVE`
-- secret: `GEMINI_API_KEY` for `/api/chat`
+- Cloudflare Workers
+- Cloudflare Workers Assets
+- Cloudflare Hyperdrive
+- PostgreSQL / Neon-compatible database
+- Gemini API for the chatbot
 
-## Local Setup
+**Legacy Local Backend**
 
-1. Install dependencies:
+- Python
+- Flask
+
+## Project Structure
+
+```text
+Flow/
+|-- index.html                  # Landing page
+|-- templates/                  # App pages
+|   |-- dashboard.html
+|   |-- Analytics.html
+|   |-- Transactions.html
+|   |-- Reports.html
+|   |-- Settings.html
+|   |-- Profile.html
+|   |-- login.html
+|   `-- signup.html
+|-- css/                        # App styles
+|-- js/                         # Frontend data, dashboard, home, and chatbot logic
+|-- src/index.js                # Cloudflare Worker API
+|-- app.py                      # Legacy Flask server
+|-- wrangler.jsonc              # Cloudflare Worker configuration
+|-- package.json                # Worker dependencies and scripts
+|-- requirements.txt            # Flask dependencies
+`-- .github/workflows/deploy.yml
+```
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js 22 or newer
+- npm
+- A Cloudflare account for Worker deployment
+- A PostgreSQL database, such as Neon, when using remote sync
+- A Gemini API key for the chatbot
+
+### Install Dependencies
 
 ```bash
 npm install
 ```
 
-2. Add the Gemini secret for local Wrangler dev:
+### Run With Cloudflare Wrangler
 
-```bash
-wrangler secret put GEMINI_API_KEY
-```
-
-3. Start local development:
+Start the Worker locally:
 
 ```bash
 npm run dev
 ```
 
-## Deploy
+Wrangler serves the static frontend and Worker API together. Open the local URL shown in the terminal.
+
+### Optional Flask Development Server
+
+The older Flask server is still available for local-only development:
 
 ```bash
-npm run deploy
+pip install -r requirements.txt
+python app.py
 ```
 
-## Database Expectations
+By default, Flask runs at:
 
-The Worker is written against these Neon tables:
+```text
+http://127.0.0.1:5000
+```
+
+## Environment Variables and Secrets
+
+The Cloudflare Worker expects:
+
+```text
+GEMINI_API_KEY
+HYPERDRIVE
+```
+
+Add the Gemini API key as a Wrangler secret:
+
+```bash
+wrangler secret put GEMINI_API_KEY
+```
+
+For local Hyperdrive development, set:
+
+```text
+CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE
+```
+
+Do not commit database connection strings, API keys, `.env` files, or local credentials.
+
+## Database Tables
+
+The Worker API expects these PostgreSQL tables:
 
 - `users`
 - `budgets`
@@ -66,24 +144,69 @@ The Worker is written against these Neon tables:
 - `user_report_downloads`
 - `user_report_categories`
 
-## Current Sync Coverage
+## Available Scripts
 
-The deployed Worker/frontend path now covers:
+```bash
+npm run dev
+```
 
-- register
-- login
-- profile updates
-- password updates
-- settings updates
-- budget updates
-- expense CRUD
-- recurring expense create/delete
-- report create/delete
-- user reset/delete flows
-- chatbot proxying through the Worker
+Runs the app locally with Wrangler.
 
-## Notes
+```bash
+npm run deploy
+```
 
-- The old Flask app in `app.py` is still present for local legacy/dev use, but Cloudflare deployment uses the Worker in `src/index.js`.
-- Hyperdrive is configured in `wrangler.jsonc` with the provided binding id.
-- The frontend still keeps a local cache in browser storage, but it now bootstraps from and syncs back to the Worker API.
+Deploys the Worker to Cloudflare.
+
+```bash
+npm run check:worker
+```
+
+Checks `src/index.js` for JavaScript syntax errors.
+
+## Deployment
+
+This project is configured for Cloudflare deployment through `wrangler.jsonc`.
+
+Manual deployment:
+
+```bash
+npm run deploy
+```
+
+GitHub Actions deployment is also configured in `.github/workflows/deploy.yml`. It deploys on pushes to `main` when app, Worker, or deployment configuration files change.
+
+Required GitHub repository secrets:
+
+```text
+CLOUDFLARE_API_TOKEN
+CLOUDFLARE_ACCOUNT_ID
+```
+
+## API Coverage
+
+The Worker currently supports:
+
+- Register and login
+- Bootstrap user data
+- Profile updates
+- Password updates
+- Settings updates
+- Budget updates
+- Expense create, read, update, and delete
+- Recurring expense create and delete
+- Report create and delete
+- User data reset
+- Account deletion
+- Chatbot proxy requests to Gemini
+
+## Security Notes
+
+- Rotate any database credential that has ever been shared outside a secure secret manager.
+- Keep `GEMINI_API_KEY` in Wrangler secrets, not in source code.
+- Keep Cloudflare credentials in GitHub Actions secrets.
+- Treat the Flask server as a local development path; production deployment uses the Cloudflare Worker.
+
+## License
+
+This project is licensed under the MIT License. See the `LICENSE` file for details.
