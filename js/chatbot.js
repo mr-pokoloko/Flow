@@ -170,7 +170,7 @@
                 <div class="flow-chatbot-messages"></div>
                 <div class="flow-chatbot-suggestions"></div>
                 <form class="flow-chatbot-form">
-                    <textarea class="flow-chatbot-input" rows="1" placeholder="Ask Flow AI for help with your money questions..."></textarea>
+                    <textarea class="flow-chatbot-input" rows="1" placeholder="Ask Flow AI"></textarea>
                     <button class="flow-chatbot-submit" type="submit" aria-label="Send message">
                         <i class="fas fa-paper-plane"></i>
                     </button>
